@@ -79,15 +79,15 @@ Chrome:
 3. Click `Load unpacked`.
 4. Select the `browser-extension/` folder.
 
-Chrome loads `browser-extension/manifest.json`, which is the MV3 service-worker manifest.
+Chrome loads `browser-extension/manifest.json` and uses its MV3 service-worker background.
 
 Firefox:
 
 1. Open `about:debugging#/runtime/this-firefox`.
 2. Click `Load Temporary Add-on`.
-3. Select `browser-extension/manifest.mv2.json`.
+3. Select `browser-extension/manifest.json`.
 
-Firefox uses the MV2 background-script manifest for local testing. The MV3-only `manifest.json` is intentionally Chrome-compatible and does not include an MV2 `background.scripts` entry.
+Firefox uses the `background.scripts` declaration from the same MV3 manifest. The Chrome-only `background.service_worker` declaration is ignored by Firefox.
 
 The browser extension options page controls:
 
@@ -116,6 +116,29 @@ To regenerate the browser extension icons:
 ```bash
 npm run auth-sync:icons
 ```
+
+### Firefox Add-ons Publishing
+
+The browser extension can be validated, packaged, and submitted to addons.mozilla.org with Mozilla's `web-ext` tooling:
+
+```bash
+npm run auth-sync:lint:firefox
+npm run auth-sync:build:firefox
+```
+
+Publication is handled by `.github/workflows/firefox-extension.yml`. Add these GitHub Actions secrets to the `firefox-addons` environment:
+
+- `AMO_JWT_ISSUER`
+- `AMO_JWT_SECRET`
+
+Create those credentials from the addons.mozilla.org API credentials page, then publish a browser extension release by bumping `browser-extension/manifest.json` and pushing a matching tag:
+
+```bash
+git tag browser-extension-v0.1.0
+git push origin browser-extension-v0.1.0
+```
+
+The workflow verifies that the tag matches the manifest version before uploading the listed add-on to Firefox Add-ons. It can also be run manually with `publish=true`.
 
 Quit Chrome first when using the current-profile script; Chrome can ignore `--load-extension` if an existing Chrome process is already running. Firefox release builds do not support a safe silent permanent install of an unsigned unpacked extension into the current profile, so use the temporary add-on flow or package/sign the extension.
 

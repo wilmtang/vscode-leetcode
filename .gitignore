@@ -61,6 +61,7 @@ typings/
 out
 *.vsix
 .vscode-test
+web-ext-artifacts/
 
 # Mac
 .DS_Store

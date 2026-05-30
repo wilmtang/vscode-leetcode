@@ -38,7 +38,17 @@
     },
     "browser_specific_settings": {
         "gecko": {
-            "id": "leetcode-vscode-auth-sync@local"
+            "id": "leetcode-vscode-auth-sync@leetcode-open-source",
+            "strict_min_version": "140.0",
+            "data_collection_permissions": {
+                "required": [
+                    "authenticationInfo",
+                    "websiteContent"
+                ]
+            }
+        },
+        "gecko_android": {
+            "strict_min_version": "142.0"
         }
     }
 }

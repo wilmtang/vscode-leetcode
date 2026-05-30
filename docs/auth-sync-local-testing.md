@@ -30,7 +30,7 @@ Browser extension:
 
 - Added `browser-extension/`.
 - Chrome loads `browser-extension/manifest.json` as an MV3 service worker extension.
-- MV2-only development loaders can use `browser-extension/manifest.mv2.json`.
+- Firefox loads `browser-extension/manifest.json` and uses the `background.scripts` declaration.
 - Added browser extension icons at all required extension sizes.
 - Automatic sync observes only LeetCode XHR/fetch request cookie headers.
 - MV3 browsers that do not expose request cookie headers can fall back to reading cookies through the cookies API.
@@ -190,13 +190,13 @@ To print the absolute path:
 npm run auth-sync:paths
 ```
 
-Chrome uses `browser-extension/manifest.json`, the MV3 service-worker manifest. It intentionally does not include `background.scripts`.
+Chrome uses the MV3 `background.service_worker` declaration from `browser-extension/manifest.json`. Firefox ignores the service worker declaration and uses the `background.scripts` declaration from the same manifest.
 
 ### Manual Firefox Install
 
 1. Open `about:debugging#/runtime/this-firefox`.
 2. Click `Load Temporary Add-on`.
-3. Select `browser-extension/manifest.mv2.json` for the MV2 background-script build.
+3. Select `browser-extension/manifest.json`.
 
 Firefox release builds do not provide a safe command for silently and permanently installing an unsigned unpacked extension into the current normal profile. Use the temporary add-on flow above for development, or package/sign the extension for a persistent install.
 

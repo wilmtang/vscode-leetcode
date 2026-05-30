@@ -1,0 +1,101 @@
+name: Firefox Extension
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - browser-extension/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/firefox-extension.yml
+  push:
+    branches: [master]
+    tags:
+      - browser-extension-v*
+    paths:
+      - browser-extension/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/firefox-extension.yml
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Sign and upload this version to addons.mozilla.org
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  validate:
+    name: Validate Firefox package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint Firefox extension
+        run: npm run auth-sync:lint:firefox
+
+      - name: Build Firefox extension artifact
+        run: npm run auth-sync:build:firefox
+
+      - name: Upload unsigned artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-extension-unsigned
+          path: web-ext-artifacts/*.zip
+          if-no-files-found: error
+
+  publish:
+    name: Upload to Firefox Add-ons
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: startsWith(github.ref, 'refs/tags/browser-extension-v') || github.event.inputs.publish == 'true'
+    environment: firefox-addons
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag matches browser extension version
+        if: startsWith(github.ref, 'refs/tags/browser-extension-v')
+        run: |
+          VERSION="$(node -p "require('./browser-extension/manifest.json').version")"
+          TAG="${GITHUB_REF_NAME#browser-extension-v}"
+          test "$VERSION" = "$TAG" || {
+            echo "Tag browser-extension-v$TAG does not match browser-extension/manifest.json version $VERSION"
+            exit 1
+          }
+
+      - name: Sign and upload listed Firefox extension
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: npm run auth-sync:publish:firefox
+
+      - name: Upload signed artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-extension-signed
+          path: web-ext-artifacts/*.xpi
+          if-no-files-found: warn

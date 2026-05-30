@@ -754,6 +754,9 @@
         "auth-sync:dev:chrome:current": "node scripts/start-chrome-auth-sync-extension.js --profile=current",
         "auth-sync:paths": "node scripts/print-auth-sync-paths.js",
         "auth-sync:icons": "node scripts/generate-browser-extension-icons.js",
+        "auth-sync:lint:firefox": "web-ext lint --source-dir browser-extension",
+        "auth-sync:build:firefox": "web-ext build --source-dir browser-extension --artifacts-dir web-ext-artifacts --overwrite-dest",
+        "auth-sync:publish:firefox": "web-ext sign --source-dir browser-extension --artifacts-dir web-ext-artifacts --channel=listed --amo-metadata browser-extension/amo-metadata.json --approval-timeout=0",
         "build": "vsce package",
         "vs-publish": "vsce publish"
     },
@@ -766,7 +769,8 @@
         "@types/require-from-string": "^1.2.0",
         "@types/vscode": "1.57.0",
         "tslint": "^5.20.1",
-        "typescript": "^4.3.2"
+        "typescript": "^4.3.2",
+        "web-ext": "^10.3.0"
     },
     "dependencies": {
         "axios": "^1.6.8",
