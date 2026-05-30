@@ -23,6 +23,7 @@ VS Code extension:
 - Added commands:
   - `LeetCode: Show Browser Auth Sync Status`
   - `LeetCode: Restart Browser Auth Sync Server`
+- Added `Auto Cookie Sync` to the login picker as the recommended sign-in path.
 - Refactored cookie login into `leetCodeManager.updateSessionFromCookie(cookie)` so manual cookie login, URI login, and browser sync all update the same session path.
 
 Browser extension:
@@ -30,10 +31,14 @@ Browser extension:
 - Added `browser-extension/`.
 - Chrome loads `browser-extension/manifest.json` as an MV3 service worker extension.
 - MV2-only development loaders can use `browser-extension/manifest.mv2.json`.
+- Added browser extension icons at all required extension sizes.
 - Automatic sync observes only LeetCode XHR/fetch request cookie headers.
+- MV3 browsers that do not expose request cookie headers can fall back to reading cookies through the cookies API.
 - Sends the full LeetCode `Cookie` header to the local VS Code listener.
 - Syncs on popup/options click or eligible LeetCode XHR/fetch requests.
-- Applies a configurable cooldown after each successful sync. Default: 30 minutes.
+- Applies a configurable cooldown after each successful automatic sync. Default: 30 minutes.
+- Manual `Sync now` from the popup or options page ignores the cooldown.
+- Popup last/next sync timers are rounded to minutes.
 - Exposes options for enabled state, port, optional shared secret, and cooldown.
 
 ## Quick Local Test
@@ -59,10 +64,10 @@ npm run auth-sync:dev:chrome
 Then:
 
 1. In the Chrome test profile, log in to `https://leetcode.com`.
-2. Click the LeetCode Auth Sync browser extension icon.
-3. Click `Sync Now`.
-4. In VS Code, run `LeetCode: Show Browser Auth Sync Status`.
-5. Confirm the LeetCode extension shows you as signed in.
+2. In VS Code, click `Sign in to LeetCode` and choose `Auto Cookie Sync`.
+3. Click the LeetCode Auth Sync browser extension icon.
+4. Click `Sync now`.
+5. Confirm the VS Code waiting notification closes and the LeetCode side bar reloads as signed in.
 6. Run a problem test or submit command to confirm the bundled CLI session was updated too.
 
 ## Start the VS Code Extension Listener
@@ -113,7 +118,8 @@ This script:
 
 1. Compiles TypeScript.
 2. Packages a VSIX into `dist/vscode-leetcode-auth-sync.vsix`.
-3. Installs that VSIX using the `code --install-extension` CLI.
+3. Removes the old stock extension ID and the previous local auth-sync extension ID if present.
+4. Installs that VSIX using the `code --install-extension` CLI.
 
 If the script cannot find the `code` command, install it from VS Code:
 
@@ -184,6 +190,8 @@ To print the absolute path:
 npm run auth-sync:paths
 ```
 
+Chrome uses `browser-extension/manifest.json`, the MV3 service-worker manifest. It intentionally does not include `background.scripts`.
+
 ### Manual Firefox Install
 
 1. Open `about:debugging#/runtime/this-firefox`.
@@ -200,7 +208,7 @@ To test secret-protected sync:
 
 1. In VS Code settings, set `leetcode.authSync.secret` to a test value such as `abc123`.
 2. In the browser extension options page, set the same optional shared secret.
-3. Click `Sync Now`.
+3. Click `Sync now`.
 
 Expected result: sync succeeds.
 
@@ -208,7 +216,7 @@ To test failure:
 
 1. Keep VS Code set to `abc123`.
 2. Set the browser extension secret to `wrong`.
-3. Click `Sync Now`.
+3. Click `Sync now`.
 
 Expected result: the browser extension reports `Invalid auth sync secret.` and VS Code does not update the cookie.
 
@@ -244,6 +252,12 @@ npm run auth-sync:paths
 
 Print useful local paths, including the browser extension path and VSIX output path.
 
+```bash
+npm run auth-sync:icons
+```
+
+Regenerate `browser-extension/icons/icon.svg` plus the 16, 32, 48, and 128 pixel PNG icons referenced by both manifests.
+
 ## Manual Endpoint Smoke Test
 
 With the VS Code extension running, this should reach the local server but fail unless the fake cookie passes LeetCode's real session checks:
@@ -262,6 +276,6 @@ Use the browser extension for an end-to-end test with real browser cookies.
 
 Cookie values are never intentionally logged by the VS Code extension or browser extension.
 
-Automatic browser sync observes only `xmlhttprequest`/fetch requests to `https://leetcode.com/*`, sends only to `http://127.0.0.1:<port>/auth/update`, and will not send again until the configured cooldown has elapsed after the last successful sync.
+Automatic browser sync observes only `xmlhttprequest`/fetch requests to `https://leetcode.com/*`, sends only to `http://127.0.0.1:<port>/auth/update`, and will not send again until the configured cooldown has elapsed after the last successful automatic sync. Manual `Sync now` ignores the cooldown.
 
 The VS Code listener binds only to `127.0.0.1`, not `0.0.0.0`, so it is not reachable from other devices on the local network.

@@ -1,6 +1,6 @@
-# LeetCode
+# LeetCode with Auth Sync
 
-> Solve LeetCode problems in VS Code
+> Solve LeetCode problems in VS Code with browser auth sync
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/LeetCode-OpenSource/vscode-leetcode/master/resources/LeetCode.png" alt="">
@@ -28,9 +28,9 @@
 
 Recently we observed that [the extension cannot login to leetcode.com endpoint anymore](https://github.com/LeetCode-OpenSource/vscode-leetcode/issues/478). The root cause of this issue is that leetcode.com changed its login mechanism and so far there is no ideal way to fix that issue.
 
-Thanks for [@yihong0618](https://github.com/yihong0618) provided a workaround which can somehow mitigate this. Now you can simply click the `Sign In` button and then select `Third Party` login or `Cookie` login.
+This fork adds a browser auth sync workaround. Click the `Sign In` button and select `Auto Cookie Sync` to wait for the companion browser extension to send your signed-in `leetcode.com` session to VS Code. `Web Authorization` and manual `LeetCode Cookie` login remain available.
 
-> Note: If you want to use third-party login(**Recommended**), please make sure your account has been connected to the third-party. If you want to use `Cookie` login, click [here](https://github.com/LeetCode-OpenSource/vscode-leetcode/issues/478#issuecomment-564757098) to see the steps.
+> Note: If you use `Web Authorization`, make sure your account has been connected to the authorization provider. If you want to use manual `LeetCode Cookie` login, click [here](https://github.com/LeetCode-OpenSource/vscode-leetcode/issues/478#issuecomment-564757098) to see the steps.
 
 ## Browser Auth Sync
 
@@ -44,7 +44,9 @@ This is useful when the normal LeetCode login flow is blocked but your browser i
 - The companion browser extension sends the full LeetCode `Cookie` header to `POST http://127.0.0.1:17899/auth/update`.
 - The VS Code extension reuses the existing cookie login path, updating VS Code state and the bundled `vsc-leetcode-cli` session/cache.
 - Automatic browser sync only observes LeetCode XHR/fetch requests, not every page asset request.
-- After a successful sync, the browser extension will not send again until its cooldown expires. The default cooldown is 30 minutes and is configurable in the browser extension options page.
+- Automatic sync waits until its cooldown expires after a successful sync. The default cooldown is 30 minutes and is configurable in the browser extension options page.
+- Manual `Sync now` from the popup or options page ignores the cooldown.
+- The popup shows last/next sync timers at minute granularity.
 - Cookie values are not intentionally logged by either extension.
 
 ### VS Code Setup
@@ -59,6 +61,8 @@ Optional VS Code settings:
 - `leetcode.authSync.enabled`: enable or disable the local listener.
 - `leetcode.authSync.port`: local listener port. Default: `17899`.
 - `leetcode.authSync.secret`: optional shared secret. If set, the browser extension must use the same value.
+
+To sign in from VS Code, choose `Auto Cookie Sync` from the login picker. VS Code shows a waiting progress notification until the browser extension sends a valid cookie, then the LeetCode side bar refreshes automatically.
 
 ### Browser Extension Setup
 
@@ -75,18 +79,22 @@ Chrome:
 3. Click `Load unpacked`.
 4. Select the `browser-extension/` folder.
 
+Chrome loads `browser-extension/manifest.json`, which is the MV3 service-worker manifest.
+
 Firefox:
 
 1. Open `about:debugging#/runtime/this-firefox`.
 2. Click `Load Temporary Add-on`.
-3. Select `browser-extension/manifest.json`.
+3. Select `browser-extension/manifest.mv2.json`.
+
+Firefox uses the MV2 background-script manifest for local testing. The MV3-only `manifest.json` is intentionally Chrome-compatible and does not include an MV2 `background.scripts` entry.
 
 The browser extension options page controls:
 
 - Enable/disable auth sync.
 - Local server port.
 - Optional shared secret.
-- Successful sync cooldown in minutes.
+- Automatic sync cooldown in minutes.
 
 ### Helper Scripts
 
@@ -101,6 +109,12 @@ To launch Chrome with your current Chrome user-data directory and the unpacked e
 
 ```bash
 npm run auth-sync:dev:chrome:current
+```
+
+To regenerate the browser extension icons:
+
+```bash
+npm run auth-sync:icons
 ```
 
 Quit Chrome first when using the current-profile script; Chrome can ignore `--load-extension` if an existing Chrome process is already running. Firefox release builds do not support a safe silent permanent install of an unsigned unpacked extension into the current profile, so use the temporary add-on flow or package/sign the extension.
