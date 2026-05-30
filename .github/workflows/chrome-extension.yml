@@ -1,0 +1,121 @@
+name: Chrome Extension
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - browser-extension/**
+      - scripts/build-browser-extension-package.js
+      - scripts/publish-chrome-web-store.js
+      - package.json
+      - package-lock.json
+      - .github/workflows/chrome-extension.yml
+  push:
+    branches: [master]
+    tags:
+      - browser-extension-v*
+    paths:
+      - browser-extension/**
+      - scripts/build-browser-extension-package.js
+      - scripts/publish-chrome-web-store.js
+      - package.json
+      - package-lock.json
+      - .github/workflows/chrome-extension.yml
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Upload and publish this version to the Chrome Web Store
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  validate:
+    name: Validate Chrome package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Chrome extension artifact
+        run: npm run auth-sync:build:chrome
+
+      - name: Verify Chrome manifest
+        run: |
+          ZIP="$(ls web-ext-artifacts/*-chrome.zip | head -n 1)"
+          unzip -p "$ZIP" manifest.json > /tmp/chrome-manifest.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const manifest = JSON.parse(fs.readFileSync('/tmp/chrome-manifest.json', 'utf8'));
+          if (manifest.browser_specific_settings) {
+            throw new Error('Chrome package must not include browser_specific_settings');
+          }
+          if (manifest.background && manifest.background.scripts) {
+            throw new Error('Chrome MV3 package must not include background.scripts');
+          }
+          if (!manifest.background || !manifest.background.service_worker) {
+            throw new Error('Chrome package must include background.service_worker');
+          }
+          NODE
+
+      - name: Upload Chrome artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension
+          path: web-ext-artifacts/*-chrome.zip
+          if-no-files-found: error
+
+  publish:
+    name: Upload to Chrome Web Store
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: startsWith(github.ref, 'refs/tags/browser-extension-v') || github.event.inputs.publish == 'true'
+    environment: chrome-web-store
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag matches browser extension version
+        if: startsWith(github.ref, 'refs/tags/browser-extension-v')
+        run: |
+          VERSION="$(node -p "require('./browser-extension/manifest.json').version")"
+          TAG="${GITHUB_REF_NAME#browser-extension-v}"
+          test "$VERSION" = "$TAG" || {
+            echo "Tag browser-extension-v$TAG does not match browser-extension/manifest.json version $VERSION"
+            exit 1
+          }
+
+      - name: Build Chrome extension artifact
+        run: npm run auth-sync:build:chrome
+
+      - name: Upload and publish Chrome extension
+        env:
+          CHROME_WEBSTORE_CLIENT_ID: ${{ secrets.CHROME_WEBSTORE_CLIENT_ID }}
+          CHROME_WEBSTORE_CLIENT_SECRET: ${{ secrets.CHROME_WEBSTORE_CLIENT_SECRET }}
+          CHROME_WEBSTORE_REFRESH_TOKEN: ${{ secrets.CHROME_WEBSTORE_REFRESH_TOKEN }}
+          CHROME_WEBSTORE_PUBLISHER_ID: ${{ secrets.CHROME_WEBSTORE_PUBLISHER_ID }}
+          CHROME_WEBSTORE_EXTENSION_ID: ${{ secrets.CHROME_WEBSTORE_EXTENSION_ID }}
+        run: |
+          ZIP="$(ls web-ext-artifacts/*-chrome.zip | head -n 1)"
+          CHROME_WEBSTORE_ZIP="$ZIP" npm run auth-sync:publish:chrome

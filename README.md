@@ -140,6 +140,26 @@ git push origin browser-extension-v0.1.2
 
 The workflow verifies that the tag matches the manifest version before uploading the listed add-on to Firefox Add-ons. It can also be run manually with `publish=true`.
 
+### Chrome Web Store Publishing
+
+Build the Chrome Web Store package with:
+
+```bash
+npm run auth-sync:build:chrome
+```
+
+This creates a Chrome-specific ZIP that removes Firefox-only manifest fields before upload.
+
+Publication is handled by `.github/workflows/chrome-extension.yml` and uses the same `browser-extension-v*` tags as the Firefox workflow. Add these GitHub Actions secrets to the `chrome-web-store` environment:
+
+- `CHROME_WEBSTORE_CLIENT_ID`
+- `CHROME_WEBSTORE_CLIENT_SECRET`
+- `CHROME_WEBSTORE_REFRESH_TOKEN`
+- `CHROME_WEBSTORE_PUBLISHER_ID`
+- `CHROME_WEBSTORE_EXTENSION_ID`
+
+Chrome Web Store API credentials are created from a Google Cloud OAuth client with the `https://www.googleapis.com/auth/chromewebstore` scope. The first Chrome Web Store submission also needs the Store Listing, Privacy, and Distribution tabs completed in the Chrome Developer Dashboard before API publishing can succeed.
+
 Quit Chrome first when using the current-profile script; Chrome can ignore `--load-extension` if an existing Chrome process is already running. Firefox release builds do not support a safe silent permanent install of an unsigned unpacked extension into the current profile, so use the temporary add-on flow or package/sign the extension.
 
 See [docs/auth-sync-local-testing.md](docs/auth-sync-local-testing.md) for the full local testing workflow and troubleshooting notes.

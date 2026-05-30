@@ -757,6 +757,8 @@
         "auth-sync:lint:firefox": "web-ext lint --source-dir browser-extension",
         "auth-sync:build:firefox": "web-ext build --source-dir browser-extension --artifacts-dir web-ext-artifacts --overwrite-dest",
         "auth-sync:publish:firefox": "web-ext sign --source-dir browser-extension --artifacts-dir web-ext-artifacts --channel=listed --amo-metadata browser-extension/amo-metadata.json --approval-timeout=0",
+        "auth-sync:build:chrome": "node scripts/build-browser-extension-package.js --browser chrome",
+        "auth-sync:publish:chrome": "node scripts/publish-chrome-web-store.js",
         "build": "vsce package",
         "vs-publish": "vsce publish"
     },
@@ -768,6 +770,7 @@
         "@types/node": "^14.14.33",
         "@types/require-from-string": "^1.2.0",
         "@types/vscode": "1.57.0",
+        "adm-zip": "^0.5.17",
         "tslint": "^5.20.1",
         "typescript": "^4.3.2",
         "web-ext": "^10.3.0"
