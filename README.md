@@ -32,6 +32,12 @@ Thanks for [@yihong0618](https://github.com/yihong0618) provided a workaround wh
 
 > Note: If you want to use third-party login(**Recommended**), please make sure your account has been connected to the third-party. If you want to use `Cookie` login, click [here](https://github.com/LeetCode-OpenSource/vscode-leetcode/issues/478#issuecomment-564757098) to see the steps.
 
+## Browser Auth Sync Local Testing
+
+This fork includes a local browser-to-VS Code cookie sync path for `leetcode.com`. A companion browser extension can read your current LeetCode browser cookies and send them to the VS Code extension on `127.0.0.1:17899`, where the existing cookie login flow updates both VS Code state and the bundled CLI session.
+
+See [docs/auth-sync-local-testing.md](docs/auth-sync-local-testing.md) for what changed, how to install the browser extension for local testing, how to start the VS Code listener, how to install the VS Code extension locally, and the helper scripts for automating those steps.
+
 ## Requirements
 
 - [VS Code 1.30.1+](https://code.visualstudio.com/)
