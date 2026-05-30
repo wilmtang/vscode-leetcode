@@ -99,15 +99,16 @@ class LeetCodeManager extends EventEmitter {
                 description: '[Recommended]'
             },
             {
-                label: 'Web Authorization',
-                detail: 'Open browser to authorize login on the website',
-                value: 'WebAuth'
-            },
-            {
                 label: 'LeetCode Cookie',
                 detail: 'Use LeetCode cookie copied from browser to login',
                 value: 'Cookie',
-            }
+            },
+            {
+                label: 'Web Authorization',
+                detail: 'Open browser to authorize login on the website',
+                value: 'WebAuth',
+                description: '[NOT Recommended]'
+            },
         )
 
         const choice: IQuickItemEx<string> | undefined = await vscode.window.showQuickPick(picks)
