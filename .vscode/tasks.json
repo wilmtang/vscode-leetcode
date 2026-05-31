@@ -25,8 +25,18 @@
             "type": "npm",
             "script": "lint",
             "problemMatcher": {
-                "base": "$tslint5",
-                "fileLocation": "absolute"
+                "owner": "tslint",
+                "fileLocation": "absolute",
+                "applyTo": "allDocuments",
+                "severity": "warning",
+                "pattern": {
+                    "regexp": "^(ERROR|WARNING):\\s+(.+?)\\[(\\d+),\\s*(\\d+)\\]:\\s+(.+)$",
+                    "severity": 1,
+                    "file": 2,
+                    "line": 3,
+                    "column": 4,
+                    "message": 5
+                }
             }
         }
     ]

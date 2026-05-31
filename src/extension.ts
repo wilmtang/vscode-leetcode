@@ -149,13 +149,29 @@ function showAuthSyncStatus(): void {
     const enabled: boolean = config.get<boolean>("authSync.enabled", true);
     const port: number = config.get<number>("authSync.port", 17899);
     const secret: string = config.get<string>("authSync.secret", "");
-    const running: string = authSyncServer.isRunning() ? "running" : "stopped";
+    const running: boolean = authSyncServer.isRunning();
     const activePort: number | undefined = authSyncServer.getPort();
-    const portDescription: string = activePort ? `${activePort}` : `${port}`;
     const lastSyncedAt: number | undefined = globalState.getAuthSyncLastSyncedAt();
-    const lastSyncedDescription: string = lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : "never";
+
+    // Build unified server status
+    let serverStatus: string;
+    if (!enabled) {
+        serverStatus = "Disabled";
+    } else if (running) {
+        serverStatus = `Listening on port ${activePort ?? port}`;
+    } else {
+        serverStatus = `Not running — failed to start on port ${port} (port may be in use)`;
+    }
+
+    // Build last sync description
+    const lastSync: string = lastSyncedAt
+        ? new Date(lastSyncedAt).toLocaleString()
+        : "No cookies synced yet";
+
+    // Build secret status
+    const secretStatus: string = secret ? "configured" : "none";
 
     vscode.window.showInformationMessage(
-        `Last cookie sync: ${lastSyncedDescription}. LeetCode auth sync: ${enabled ? "enabled" : "disabled"}, ${running}, port ${portDescription}, secret ${secret ? "enabled" : "disabled"}.`
+        `Auth Sync: ${serverStatus}. Secret: ${secretStatus}. Last sync: ${lastSync}.`
     );
 }
