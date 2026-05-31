@@ -29,15 +29,19 @@ with one secret:
 
 Create that token from Azure DevOps with these values:
 
-- Organization: `All accessible organizations`
+- Organization: `wilmtang`
 - Scopes: `Custom defined`
 - Marketplace: `Manage`
 
-Azure DevOps requires an active Azure subscription before it can create new
-organizations. If the PAT page is unavailable and Azure DevOps asks you to
-create an organization first, attach an Azure subscription to the Microsoft
-account, create an organization such as `wilmtang`, then return to the PAT
-creation page.
+This account's Azure DevOps organization is reachable through the legacy
+organization URL:
+
+```text
+https://wilmtang.visualstudio.com/_usersSettings/tokens
+```
+
+The `dev.azure.com/wilmtang` URL can show a 404 for this org even though the
+organization appears on the Azure DevOps profile page.
 
 Then create or verify the publisher in the Visual Studio Marketplace publisher
 management page:
