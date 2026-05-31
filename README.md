@@ -107,6 +107,19 @@ To regenerate the browser extension icons:
 npm run auth-sync:icons
 ```
 
+### VS Code Marketplace Publishing
+
+Publication of the VS Code extension is handled by `.github/workflows/vscode-extension.yml`. It uses `vscode-extension-v*` release tags so it is independent from the browser extension release lane:
+
+```bash
+git tag vscode-extension-v0.18.5
+git push origin vscode-extension-v0.18.5
+```
+
+The workflow verifies that the tag matches `package.json` before publishing. Add `VSCE_PAT` to the `vscode-marketplace` GitHub Actions environment; the token must be an Azure DevOps Personal Access Token with Marketplace `Manage` scope for the publisher in `package.json`.
+
+See [docs/vscode-marketplace-publishing.md](docs/vscode-marketplace-publishing.md) for the full publisher, token, GitHub environment, and release-tag setup.
+
 ### Firefox Add-ons Publishing
 
 The browser extension can be validated, packaged, and submitted to addons.mozilla.org with Mozilla's `web-ext` tooling:
@@ -116,7 +129,7 @@ npm run auth-sync:lint:firefox
 npm run auth-sync:build:firefox
 ```
 
-Publication is handled by `.github/workflows/firefox-extension.yml`. Add these GitHub Actions secrets to the `firefox-addons` environment:
+Publication is handled by `.github/workflows/firefox-extension.yml`. Browser extension releases use `browser-extension-v*` tags, intentionally separate from the VS Code Marketplace `vscode-extension-v*` tags. Add these GitHub Actions secrets to the `firefox-addons` environment:
 
 - `AMO_JWT_ISSUER`
 - `AMO_JWT_SECRET`
@@ -140,7 +153,7 @@ npm run auth-sync:build:chrome
 
 This creates a Chrome-specific ZIP that removes Firefox-only manifest fields before upload.
 
-Publication is handled by `.github/workflows/chrome-extension.yml` and uses the same `browser-extension-v*` tags as the Firefox workflow. Add these GitHub Actions secrets to the `chrome-web-store` environment:
+Publication is handled by `.github/workflows/chrome-extension.yml` and uses the same `browser-extension-v*` tags as the Firefox workflow. These tags are intentionally separate from the VS Code Marketplace `vscode-extension-v*` tags. Add these GitHub Actions secrets to the `chrome-web-store` environment:
 
 - `CHROME_WEBSTORE_CLIENT_ID`
 - `CHROME_WEBSTORE_CLIENT_SECRET`
