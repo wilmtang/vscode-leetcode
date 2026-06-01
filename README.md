@@ -3,8 +3,8 @@
 [![VS Code Marketplace Version](https://vsmarketplacebadges.dev/version/wilmtang.vscode-leetcode-auth-sync.svg)](https://marketplace.visualstudio.com/items?itemName=wilmtang.vscode-leetcode-auth-sync)
 [![VS Code Marketplace Installs](https://vsmarketplacebadges.dev/installs-short/wilmtang.vscode-leetcode-auth-sync.svg)](https://marketplace.visualstudio.com/items?itemName=wilmtang.vscode-leetcode-auth-sync)
 [![VS Code Marketplace Downloads](https://vsmarketplacebadges.dev/downloads-short/wilmtang.vscode-leetcode-auth-sync.svg)](https://marketplace.visualstudio.com/items?itemName=wilmtang.vscode-leetcode-auth-sync)
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-review%20pending-orange?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/leetcode-vs-code-auth-syn/elbnajbjhllgodibfhbfiigfmcfpbnck)
-[![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-review%20pending-orange?logo=firefoxbrowser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/leetcode-vs-code-auth-sync/)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-listing-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/leetcode-vs-code-auth-syn/elbnajbjhllgodibfhbfiigfmcfpbnck)
+[![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-listing-FF7139?logo=firefoxbrowser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/leetcode-vs-code-auth-sync/)
 [![Build](https://img.shields.io/github/actions/workflow/status/wilmtang/vscode-leetcode/build.yml?branch=master&label=build)](https://github.com/wilmtang/vscode-leetcode/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -16,188 +16,228 @@ It is not affiliated with, endorsed by, sponsored by, or published by LeetCode.
 The original project's MIT license and copyright notices are preserved in
 [LICENSE](LICENSE), with additional fork attribution in [NOTICE.md](NOTICE.md).
 
-## Login Workaround for leetcode.com
+## For Users: Install and Use
 
-> Note: If you are using `leetcode.cn`, you can ignore this section.
+This repository has two installable pieces:
 
-Recently we observed that [the extension cannot login to leetcode.com endpoint anymore](https://github.com/wilmtang/vscode-leetcode/issues/478). The root cause of this issue is that leetcode.com changed its login mechanism and so far there is no ideal way to fix that issue.
+- **VS Code extension:** the LeetCode explorer, editor commands, test/submit flow, and local auth-sync listener.
+- **Browser extension:** the companion browser plugin that reads your signed-in `leetcode.com` browser session and sends it to the local VS Code listener.
 
-This fork adds a browser auth sync workaround. Click the `Sign In` button and select `Auto Cookie Sync` to wait for the companion browser extension to send your signed-in `leetcode.com` session to VS Code. `Web Authorization` and manual `LeetCode Cookie` login remain available.
+Install both pieces on the same machine.
 
-> Note: If you use `Web Authorization`, make sure your account has been connected to the authorization provider. If you want to use manual `LeetCode Cookie` login, click [here](https://github.com/wilmtang/vscode-leetcode/issues/478#issuecomment-564757098) to see the steps.
-
-## Browser Auth Sync
-
-This fork includes a local browser-to-VS Code cookie sync path for `leetcode.com`. It is useful when the normal VS Code login flow is blocked but your browser is already signed in to LeetCode.
-
-### Install
-
-Install both pieces on the same machine:
-
-1. Install the VS Code extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=wilmtang.vscode-leetcode-auth-sync).
-2. Install one browser extension:
-   - Firefox: [LeetCode VS Code Auth Sync on Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/leetcode-vs-code-auth-sync/) (review may still be pending).
-   - Chrome: after Chrome Web Store approval, the public listing should be [LeetCode VS Code Auth Sync on Chrome Web Store](https://chromewebstore.google.com/detail/leetcode-vs-code-auth-syn/elbnajbjhllgodibfhbfiigfmcfpbnck). Until then, use the local unpacked install steps below if you are testing from this repository.
-3. Sign in to [leetcode.com](https://leetcode.com/) in the same browser.
+1. Install [LeetCode with Auth Sync from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=wilmtang.vscode-leetcode-auth-sync).
+2. Install the companion browser extension from the public listing for your browser:
+   - Firefox: [LeetCode VS Code Auth Sync on Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/leetcode-vs-code-auth-sync/)
+   - Chrome: [LeetCode VS Code Auth Sync on Chrome Web Store](https://chromewebstore.google.com/detail/leetcode-vs-code-auth-syn/elbnajbjhllgodibfhbfiigfmcfpbnck)
+3. Sign in to [leetcode.com](https://leetcode.com/) in that browser.
 4. In VS Code, open the LeetCode side bar, click `Sign In`, and choose `Auto Cookie Sync`.
 5. Click `Sync now` in the browser extension popup, or use LeetCode normally and wait for automatic sync.
 
-When sync succeeds, VS Code refreshes the LeetCode side bar and uses the same signed-in session as your browser.
+When sync succeeds, the VS Code notification closes, the LeetCode side bar refreshes, and test/submit commands use the same LeetCode session as your browser.
 
-### How It Works
+If a browser store listing is not available for your browser yet, load `browser-extension/` manually from a local checkout using the contributor steps below.
 
-- The VS Code extension starts a local listener on `127.0.0.1:17899` by default.
-- When multiple VS Code windows are open, only one window owns the listener. Other windows observe shared auth sync state, show the owner window in status, and can take over if the owner heartbeat becomes stale.
-- The companion browser extension reads your `leetcode.com` cookies and sends the LeetCode `Cookie` header to `POST http://127.0.0.1:17899/auth/update`.
-- The VS Code extension reuses its existing cookie login path, updating VS Code state and the bundled `vsc-leetcode-cli` session/cache.
-- Automatic browser sync only observes LeetCode XHR/fetch requests, not every page asset request, and waits for a configurable cooldown after a successful sync. The default cooldown is 30 minutes.
-- Manual `Sync now` from the popup or options page ignores the cooldown.
-- Cookie values are sent only to the local VS Code listener and are not intentionally logged by either extension.
+`Auto Cookie Sync` is only needed for `leetcode.com`. If you use `leetcode.cn`, or if web/manual login already works for your account, you can still use the existing `Web Authorization` or `LeetCode Cookie` login options.
 
-### VS Code Setup
+### User Controls
 
-Install [LeetCode with Auth Sync from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=wilmtang.vscode-leetcode-auth-sync). The auth sync listener starts automatically when the extension activates. You can inspect or restart it from the Command Palette:
+VS Code commands:
 
-- **LeetCode: Show Browser Auth Sync Status**
-- **LeetCode: Restart Browser Auth Sync Server**
-- **LeetCode: Force Start Browser Auth Sync Server**
+- `LeetCode: Sign In`
+- `LeetCode: Sign Out`
+- `LeetCode: Show Browser Auth Sync Status`
+- `LeetCode: Restart Browser Auth Sync Server`
+- `LeetCode: Force Start Browser Auth Sync Server`
 
-Optional VS Code settings:
+Browser extension controls:
 
-- `leetcode.authSync.enabled`: enable or disable the local listener.
-- `leetcode.authSync.port`: local listener port. Default: `17899`.
-- `leetcode.authSync.ownerHeartbeatIntervalSeconds`: how often the owner window writes its heartbeat. Default: `30`.
-- `leetcode.authSync.observerCheckIntervalSeconds`: how often observer windows check ownership state. Default: `60`.
-- `leetcode.authSync.ownerStaleAfterSeconds`: how long a missing heartbeat must remain stale before an observer may take over. Default: `120`.
-- `leetcode.authSync.secret`: optional shared secret. If set, the browser extension must use the same value.
+- `Sync now`: immediately sends the current `leetcode.com` cookie to VS Code.
+- `Enabled`: turns browser-side sync on or off.
+- `Port`: must match `leetcode.authSync.port` in VS Code. The default is `17899`.
+- `Shared secret`: optional. If set in VS Code, set the same value in the browser extension.
+- `Cooldown`: controls how often automatic browser sync can run after a successful sync. Manual `Sync now` ignores the cooldown.
 
-To sign in from VS Code, choose `Auto Cookie Sync` from the login picker. VS Code shows a waiting progress notification until the browser extension sends a valid cookie, then the LeetCode side bar refreshes automatically.
+## How Browser Auth Sync Works
 
-If the configured port is already owned by another VS Code window, `Force Start Browser Auth Sync Server` asks that window to release the listener and then makes the current window the owner. If another program owns the port, the command refuses to stop it and shows copyable inspection/stop commands in the LeetCode output channel.
+The browser extension does not log in to LeetCode by itself. Instead, it copies the already-signed-in browser session into the VS Code extension over a loopback-only HTTP endpoint.
 
-### Browser Extension Setup
-
-The companion browser extension is packaged separately and is intentionally excluded from the VS Code Marketplace VSIX package.
-
-Store links:
-
-- Firefox: [https://addons.mozilla.org/en-US/firefox/addon/leetcode-vs-code-auth-sync/](https://addons.mozilla.org/en-US/firefox/addon/leetcode-vs-code-auth-sync/) (review may still be pending).
-- Chrome: [https://chromewebstore.google.com/detail/leetcode-vs-code-auth-syn/elbnajbjhllgodibfhbfiigfmcfpbnck](https://chromewebstore.google.com/detail/leetcode-vs-code-auth-syn/elbnajbjhllgodibfhbfiigfmcfpbnck) once Chrome Web Store approval is complete.
-
-Load the unpacked extension from:
-
-```text
-browser-extension/
+```mermaid
+flowchart LR
+    A["You sign in on leetcode.com"] --> B["Browser extension reads LeetCode cookies"]
+    B --> C["POST http://127.0.0.1:17899/auth/update"]
+    C --> D["VS Code extension auth-sync server"]
+    D --> E["Existing cookie login path"]
+    E --> F["VS Code global state"]
+    E --> G["Bundled vsc-leetcode-cli session/cache"]
+    F --> H["LeetCode explorer refreshes"]
+    G --> I["Test and submit use the synced session"]
 ```
 
-Chrome:
+Important details:
+
+- The VS Code extension listens on `127.0.0.1` only, not on your network interface. Default endpoint: `POST http://127.0.0.1:17899/auth/update`.
+- The health endpoint is `GET http://127.0.0.1:17899/health`.
+- If several VS Code windows are open, only one owns the listener. Other windows observe the shared owner state and can take over after the owner heartbeat becomes stale.
+- The browser extension reads `leetcode.com` cookies and sends a LeetCode `Cookie` header to the local listener.
+- Automatic sync observes only LeetCode XHR/fetch requests and waits for the configured cooldown after a successful automatic sync.
+- Manual `Sync now` from the popup or options page bypasses the cooldown.
+- Cookie values are sent only to the local VS Code listener and are not intentionally logged by either extension.
+- If `leetcode.authSync.secret` is set, the browser extension must send the same value in the `X-LeetCode-AuthSync-Secret` header.
+
+## For Contributors: Test Locally
+
+Install dependencies first:
+
+```bash
+npm ci --replace-registry-host=always
+```
+
+### Test the VS Code Extension
+
+Run the extension in a VS Code Extension Development Host:
+
+```bash
+npm run auth-sync:dev:vscode
+```
+
+That compiles TypeScript, opens a new VS Code window with this checkout as the extension under development, and starts the auth-sync listener after activation.
+
+Useful contributor commands in the development host:
+
+- `LeetCode: Show Browser Auth Sync Status`
+- `LeetCode: Restart Browser Auth Sync Server`
+- `LeetCode: Force Start Browser Auth Sync Server`
+
+To test a packaged local install instead of an Extension Development Host:
+
+```bash
+npm run auth-sync:install:vscode
+```
+
+This builds `dist/vscode-leetcode-auth-sync.vsix`, uninstalls the old stock/local extension IDs if present, installs the VSIX with the `code` CLI, and asks you to reload VS Code.
+
+### Reload the VS Code Extension While Developing
+
+After changing TypeScript:
+
+1. Recompile with `npm run compile`, or keep `npm run watch` running in another terminal.
+2. In the Extension Development Host, run `Developer: Reload Window`.
+
+If you used `npm run auth-sync:install:vscode`, rerun that install command after code changes, then reload the normal VS Code window with `Developer: Reload Window`.
+
+If only auth-sync settings changed, use `LeetCode: Restart Browser Auth Sync Server` or change the setting and let the extension restart the listener.
+
+### Test the Browser Extension
+
+Start Chrome or Chromium with the unpacked browser extension and a disposable profile:
+
+```bash
+npm run auth-sync:dev:chrome
+```
+
+To test against your current Chrome user-data directory:
+
+```bash
+npm run auth-sync:dev:chrome:current
+```
+
+Quit Chrome first when using the current-profile script. If Chrome is already running, it can ignore the `--load-extension` flag.
+
+Manual Chrome load:
 
 1. Open `chrome://extensions`.
 2. Enable `Developer mode`.
 3. Click `Load unpacked`.
 4. Select the `browser-extension/` folder.
 
-Chrome loads `browser-extension/manifest.json` and uses its MV3 service-worker background.
-
-Firefox:
+Manual Firefox load:
 
 1. Open `about:debugging#/runtime/this-firefox`.
 2. Click `Load Temporary Add-on`.
 3. Select `browser-extension/manifest.json`.
 
-Firefox uses the `background.scripts` declaration from the same MV3 manifest. The Chrome-only `background.service_worker` declaration is ignored by Firefox.
+Chrome uses the MV3 `background.service_worker` entry from `browser-extension/manifest.json`. Firefox uses the `background.scripts` entry from the same manifest.
 
-The browser extension options page controls:
+### Reload the Browser Extension While Developing
 
-- Enable/disable auth sync.
-- Local server port.
-- Optional shared secret.
-- Automatic sync cooldown in minutes.
+Chrome:
 
-### Helper Scripts
+1. Open `chrome://extensions`.
+2. Find `LeetCode VS Code Auth Sync`.
+3. Click the reload button on the extension card.
+4. Reopen the popup or options page before testing UI changes.
 
-For local testing:
+Firefox:
+
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Find `LeetCode VS Code Auth Sync`.
+3. Click `Reload`.
+4. Reopen the popup or options page before testing UI changes.
+
+Reload the browser extension after changes to `browser-extension/background.js`, `manifest.json`, `popup.*`, `options.*`, or icons.
+
+### End-to-End Local Test
+
+1. Start VS Code locally with `npm run auth-sync:dev:vscode`.
+2. Start the browser extension with `npm run auth-sync:dev:chrome`, or load it manually.
+3. Sign in to `https://leetcode.com` in that browser profile.
+4. In VS Code, choose `LeetCode: Sign In`, then `Auto Cookie Sync`.
+5. In the browser extension popup, click `Sync now`.
+6. Confirm the VS Code waiting notification closes and the LeetCode explorer refreshes as signed in.
+7. Run a problem test or submit command to confirm the bundled CLI session was updated.
+
+You can also smoke-test the local listener:
 
 ```bash
+curl -i http://127.0.0.1:17899/health
+```
+
+For the full local workflow and troubleshooting notes, see [docs/auth-sync-local-testing.md](docs/auth-sync-local-testing.md).
+
+### Contributor Scripts
+
+```bash
+npm run compile
+npm run watch
+npm run lint
 npm run auth-sync:dev:vscode
+npm run auth-sync:install:vscode
 npm run auth-sync:dev:chrome
-```
-
-To launch Chrome with your current Chrome user-data directory and the unpacked extension:
-
-```bash
 npm run auth-sync:dev:chrome:current
-```
-
-To regenerate the browser extension icons:
-
-```bash
+npm run auth-sync:paths
 npm run auth-sync:icons
+npm run auth-sync:lint:firefox
+npm run auth-sync:build:firefox
+npm run auth-sync:build:chrome
 ```
 
-### VS Code Marketplace Publishing
+## Maintainer Publishing
 
-Publication of the VS Code extension is handled by `.github/workflows/vscode-extension.yml`. It uses `vscode-extension-v*` release tags so it is independent from the browser extension release lane:
+The VS Code extension and browser extension use separate release lanes.
+
+VS Code Marketplace releases are handled by `.github/workflows/vscode-extension.yml` and use `vscode-extension-v*` tags:
 
 ```bash
 git tag vscode-extension-v0.18.7
 git push origin vscode-extension-v0.18.7
 ```
 
-The workflow verifies that the tag matches `package.json` before publishing. Add `VSCE_PAT` to the `vscode-marketplace` GitHub Actions environment; the token must be an Azure DevOps Personal Access Token with Marketplace `Manage` scope for the publisher in `package.json`.
+The workflow verifies that the tag matches `package.json`. Add `VSCE_PAT` to the `vscode-marketplace` GitHub Actions environment; the token must be an Azure DevOps Personal Access Token with Marketplace `Manage` scope for the publisher in `package.json`. See [docs/vscode-marketplace-publishing.md](docs/vscode-marketplace-publishing.md).
 
-See [docs/vscode-marketplace-publishing.md](docs/vscode-marketplace-publishing.md) for the full publisher, token, GitHub environment, and release-tag setup.
-
-### Firefox Add-ons Publishing
-
-The browser extension can be validated, packaged, and submitted to addons.mozilla.org with Mozilla's `web-ext` tooling:
+Browser extension releases use `browser-extension-v*` tags for both Firefox and Chrome:
 
 ```bash
-npm run auth-sync:lint:firefox
-npm run auth-sync:build:firefox
+git tag browser-extension-v0.1.3
+git push origin browser-extension-v0.1.3
 ```
 
-Publication is handled by `.github/workflows/firefox-extension.yml`. Browser extension releases use `browser-extension-v*` tags, intentionally separate from the VS Code Marketplace `vscode-extension-v*` tags. Add these GitHub Actions secrets to the `firefox-addons` environment:
+Firefox publication is handled by `.github/workflows/firefox-extension.yml`. It uses `web-ext` and needs `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` in the `firefox-addons` environment.
 
-- `AMO_JWT_ISSUER`
-- `AMO_JWT_SECRET`
-
-Create those credentials from the addons.mozilla.org API credentials page, then publish a browser extension release by bumping `browser-extension/manifest.json` and pushing a matching tag:
-
-```bash
-git tag browser-extension-v0.1.2
-git push origin browser-extension-v0.1.2
-```
-
-The workflow verifies that the tag matches the manifest version before uploading the listed add-on to Firefox Add-ons. It can also be run manually with `publish=true`.
-
-### Chrome Web Store Publishing
-
-Build the Chrome Web Store package with:
-
-```bash
-npm run auth-sync:build:chrome
-```
-
-This creates a Chrome-specific ZIP that removes Firefox-only manifest fields before upload.
-
-Publication is handled by `.github/workflows/chrome-extension.yml` and uses the same `browser-extension-v*` tags as the Firefox workflow. These tags are intentionally separate from the VS Code Marketplace `vscode-extension-v*` tags. Add these GitHub Actions secrets to the `chrome-web-store` environment:
-
-- `CHROME_WEBSTORE_CLIENT_ID`
-- `CHROME_WEBSTORE_CLIENT_SECRET`
-- `CHROME_WEBSTORE_REFRESH_TOKEN`
-- `CHROME_WEBSTORE_PUBLISHER_ID`
-- `CHROME_WEBSTORE_EXTENSION_ID`
-
-Chrome Web Store API credentials are created from a Google Cloud OAuth client with the `https://www.googleapis.com/auth/chromewebstore` scope. The first Chrome Web Store submission also needs the Store Listing, Privacy, and Distribution tabs completed in the Chrome Developer Dashboard before API publishing can succeed.
-
-Quit Chrome first when using the current-profile script; Chrome can ignore `--load-extension` if an existing Chrome process is already running. Firefox release builds do not support a safe silent permanent install of an unsigned unpacked extension into the current profile, so use the temporary add-on flow or package/sign the extension.
-
-See [docs/auth-sync-local-testing.md](docs/auth-sync-local-testing.md) for the full local testing workflow and troubleshooting notes.
+Chrome publication is handled by `.github/workflows/chrome-extension.yml`. Build the Chrome ZIP locally with `npm run auth-sync:build:chrome`. The workflow needs `CHROME_WEBSTORE_CLIENT_ID`, `CHROME_WEBSTORE_CLIENT_SECRET`, `CHROME_WEBSTORE_REFRESH_TOKEN`, `CHROME_WEBSTORE_PUBLISHER_ID`, and `CHROME_WEBSTORE_EXTENSION_ID` in the `chrome-web-store` environment.
 
 ## Requirements
 
-- [VS Code 1.30.1+](https://code.visualstudio.com/)
+- [VS Code 1.57.0+](https://code.visualstudio.com/)
 - [Node.js 10+](https://nodejs.org)
   > NOTE: Please make sure that `Node` is in your `PATH` environment variable. You can also use the setting `leetcode.nodePath` to specify the location of your `Node.js` executable.
 
@@ -312,6 +352,9 @@ See [docs/auth-sync-local-testing.md](docs/auth-sync-local-testing.md) for the f
 | `leetcode.allowReportData`        | Opt in to anonymous usage telemetry for this unofficial fork. Telemetry is disabled by default.                                                                                                                                                               | `false`            |
 | `leetcode.authSync.enabled`       | Enable the local browser auth sync server on `127.0.0.1`.                                                                                                                                                                                                     | `true`             |
 | `leetcode.authSync.port`          | Local port used by the browser auth sync server. The browser extension must use the same port.                                                                                                                                                                | `17899`            |
+| `leetcode.authSync.ownerHeartbeatIntervalSeconds` | How often the VS Code window that owns the browser auth sync listener writes its heartbeat.                                                                                                                                             | `30`               |
+| `leetcode.authSync.observerCheckIntervalSeconds` | How often observer windows check shared auth sync ownership state.                                                                                                                                                                      | `60`               |
+| `leetcode.authSync.ownerStaleAfterSeconds` | How long an owner heartbeat can be missing before another VS Code window may take over.                                                                                                                                                         | `120`              |
 | `leetcode.authSync.secret`        | Optional shared secret for browser auth sync. If set, the browser extension must send the same secret.                                                                                                                                                        | `""`               |
 
 ## Want Help?
