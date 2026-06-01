@@ -10,6 +10,7 @@ import { ExtensionContext } from "vscode";
 import { ConfigurationChangeEvent, Disposable, MessageItem, window, workspace, WorkspaceConfiguration } from "vscode";
 import { Endpoint, IProblem, leetcodeHasInited, supportedPlugins } from "./shared";
 import { executeCommand, executeCommandWithProgress } from "./utils/cpUtils";
+import { normalizeTemplateComments } from "./utils/codeTemplateUtils";
 import { DialogOptions, openUrl } from "./utils/uiUtils";
 import * as wsl from "./utils/wslUtils";
 import { toWslPath, useWsl } from "./utils/wslUtils";
@@ -111,7 +112,7 @@ class LeetCodeExecutor implements Disposable {
         if (!await fse.pathExists(filePath)) {
             await fse.createFile(filePath);
             const codeTemplate: string = await this.executeCommandWithProgressEx("Fetching problem data...", this.nodeExecutable, cmd);
-            await fse.writeFile(filePath, codeTemplate);
+            await fse.writeFile(filePath, normalizeTemplateComments(codeTemplate, language, showDescriptionInComment));
         }
     }
 
