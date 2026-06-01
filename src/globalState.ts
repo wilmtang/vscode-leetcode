@@ -6,6 +6,7 @@ import * as vscode from "vscode";
 const CookieKey = "leetcode-cookie";
 const UserStatusKey = "leetcode-user-status";
 const AuthSyncLastSyncedAtKey = "leetcode-auth-sync-last-synced-at";
+const AuthSyncOwnerKey = "leetcode-auth-sync-owner";
 
 export type UserDataType = {
     isSignedIn: boolean;
@@ -15,12 +16,20 @@ export type UserDataType = {
     isVerified?: boolean;
 };
 
+export interface IAuthSyncOwnerRecord {
+    service: string;
+    windowId: string;
+    windowLabel: string;
+    pid: number;
+    port: number;
+    startedAt: number;
+    heartbeatAt: number;
+    controlToken: string;
+}
+
 class GlobalState {
     private context: vscode.ExtensionContext;
     private _state: vscode.Memento;
-    private _cookie: string;
-    private _userStatus: UserDataType;
-    private _authSyncLastSyncedAt: number | undefined;
 
     public initialize(context: vscode.ExtensionContext): void {
         this.context = context;
@@ -28,30 +37,49 @@ class GlobalState {
     }
 
     public setCookie(cookie: string): any {
-        this._cookie = cookie;
-        return this._state.update(CookieKey, this._cookie);
+        return this._state.update(CookieKey, cookie);
     }
     public getCookie(): string | undefined {
-        return this._cookie ?? this._state.get(CookieKey);
+        return this._state.get(CookieKey);
     }
 
     public setAuthSyncLastSyncedAt(timestamp: number): Thenable<void> {
-        this._authSyncLastSyncedAt = timestamp;
-        return this._state.update(AuthSyncLastSyncedAtKey, this._authSyncLastSyncedAt);
+        return this._state.update(AuthSyncLastSyncedAtKey, timestamp);
     }
 
     public getAuthSyncLastSyncedAt(): number | undefined {
-        const timestamp: number | undefined = this._authSyncLastSyncedAt ?? this._state.get(AuthSyncLastSyncedAtKey);
+        const timestamp: number | undefined = this._state.get(AuthSyncLastSyncedAtKey);
         return typeof timestamp === "number" && Number.isFinite(timestamp) && timestamp > 0 ? timestamp : undefined;
     }
 
     public setUserStatus(userStatus: UserDataType): any {
-        this._userStatus = userStatus;
-        return this._state.update(UserStatusKey, this._userStatus);
+        return this._state.update(UserStatusKey, userStatus);
     }
 
     public getUserStatus(): UserDataType | undefined {
-        return this._userStatus ?? this._state.get(UserStatusKey);
+        return this._state.get(UserStatusKey);
+    }
+
+    public setAuthSyncOwner(owner: IAuthSyncOwnerRecord): Thenable<void> {
+        return this._state.update(AuthSyncOwnerKey, owner);
+    }
+
+    public getAuthSyncOwner(): IAuthSyncOwnerRecord | undefined {
+        const owner: IAuthSyncOwnerRecord | undefined = this._state.get(AuthSyncOwnerKey);
+        if (!owner || owner.service !== "vscode-leetcode-auth-sync") {
+            return undefined;
+        }
+
+        return owner;
+    }
+
+    public clearAuthSyncOwner(windowId?: string): Thenable<void> {
+        const owner: IAuthSyncOwnerRecord | undefined = this.getAuthSyncOwner();
+        if (windowId && owner && owner.windowId !== windowId) {
+            return Promise.resolve();
+        }
+
+        return this._state.update(AuthSyncOwnerKey, undefined);
     }
 
     public removeCookie(): void {

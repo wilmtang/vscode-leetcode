@@ -6,11 +6,11 @@ It uses a separate release tag prefix from the browser extension workflows:
 - VS Code Marketplace: `vscode-extension-v<package.json version>`
 - Chrome Web Store and Firefox Add-ons: `browser-extension-v<browser-extension/manifest.json version>`
 
-For example, publishing VS Code extension version `0.18.5` uses:
+For example, publishing VS Code extension version `0.18.7` uses:
 
 ```bash
-git tag vscode-extension-v0.18.5
-git push origin vscode-extension-v0.18.5
+git tag vscode-extension-v0.18.7
+git push origin vscode-extension-v0.18.7
 ```
 
 Publishing browser extension version `0.1.2` still uses:

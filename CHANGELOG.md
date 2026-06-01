@@ -3,6 +3,14 @@ All notable changes to the "leetcode" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.18.7]
+### Added
+- Coordinate browser auth sync ownership across multiple VS Code windows with configurable heartbeat, observer check, and stale-owner timings.
+- Add `LeetCode: Force Start Browser Auth Sync Server` to move listener ownership to the current VS Code window when the port is owned by this extension.
+
+### Fixed
+- Read auth cookies, user status, and sync timestamps from shared VS Code global state so observer windows do not keep stale in-memory auth state.
+
 ## [0.18.6]
 ### Added
 - Show the last successful browser cookie sync time first in the auth sync status command.

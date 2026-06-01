@@ -2,7 +2,7 @@
     "name": "vscode-leetcode-auth-sync",
     "displayName": "LeetCode with Auth Sync",
     "description": "Unofficial VS Code extension for solving LeetCode problems with browser auth sync; not affiliated with LeetCode",
-    "version": "0.18.6",
+    "version": "0.18.7",
     "author": "wilmtang",
     "publisher": "wilmtang",
     "license": "MIT",
@@ -32,6 +32,7 @@
         "onCommand:leetcode.signout",
         "onCommand:leetcode.authSync.status",
         "onCommand:leetcode.authSync.restart",
+        "onCommand:leetcode.authSync.forceStart",
         "onCommand:leetcode.manageSessions",
         "onCommand:leetcode.refreshExplorer",
         "onCommand:leetcode.pickOne",
@@ -153,6 +154,11 @@
             {
                 "command": "leetcode.authSync.restart",
                 "title": "Restart Browser Auth Sync Server",
+                "category": "LeetCode"
+            },
+            {
+                "command": "leetcode.authSync.forceStart",
+                "title": "Force Start Browser Auth Sync Server",
                 "category": "LeetCode"
             }
         ],
@@ -732,6 +738,30 @@
                         "maximum": 65535,
                         "scope": "application",
                         "description": "Local port used by the browser auth sync server. The companion browser extension must use the same port. Default: 17899."
+                    },
+                    "leetcode.authSync.ownerHeartbeatIntervalSeconds": {
+                        "type": "number",
+                        "default": 30,
+                        "minimum": 10,
+                        "maximum": 3600,
+                        "scope": "application",
+                        "description": "How often the VS Code window that owns the browser auth sync listener writes its heartbeat. Default: 30 seconds."
+                    },
+                    "leetcode.authSync.observerCheckIntervalSeconds": {
+                        "type": "number",
+                        "default": 60,
+                        "minimum": 15,
+                        "maximum": 3600,
+                        "scope": "application",
+                        "description": "How often observer windows check shared auth sync ownership state and try to take over after the owner is stale. Default: 60 seconds."
+                    },
+                    "leetcode.authSync.ownerStaleAfterSeconds": {
+                        "type": "number",
+                        "default": 120,
+                        "minimum": 30,
+                        "maximum": 86400,
+                        "scope": "application",
+                        "description": "How long an auth sync owner heartbeat can be missing before another VS Code window may take over. The extension may raise the effective value to keep it above the heartbeat and observer-check intervals. Default: 120 seconds."
                     },
                     "leetcode.authSync.secret": {
                         "type": "string",

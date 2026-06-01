@@ -47,6 +47,7 @@ When sync succeeds, VS Code refreshes the LeetCode side bar and uses the same si
 ### How It Works
 
 - The VS Code extension starts a local listener on `127.0.0.1:17899` by default.
+- When multiple VS Code windows are open, only one window owns the listener. Other windows observe shared auth sync state, show the owner window in status, and can take over if the owner heartbeat becomes stale.
 - The companion browser extension reads your `leetcode.com` cookies and sends the LeetCode `Cookie` header to `POST http://127.0.0.1:17899/auth/update`.
 - The VS Code extension reuses its existing cookie login path, updating VS Code state and the bundled `vsc-leetcode-cli` session/cache.
 - Automatic browser sync only observes LeetCode XHR/fetch requests, not every page asset request, and waits for a configurable cooldown after a successful sync. The default cooldown is 30 minutes.
@@ -59,14 +60,20 @@ Install [LeetCode with Auth Sync from the VS Code Marketplace](https://marketpla
 
 - **LeetCode: Show Browser Auth Sync Status**
 - **LeetCode: Restart Browser Auth Sync Server**
+- **LeetCode: Force Start Browser Auth Sync Server**
 
 Optional VS Code settings:
 
 - `leetcode.authSync.enabled`: enable or disable the local listener.
 - `leetcode.authSync.port`: local listener port. Default: `17899`.
+- `leetcode.authSync.ownerHeartbeatIntervalSeconds`: how often the owner window writes its heartbeat. Default: `30`.
+- `leetcode.authSync.observerCheckIntervalSeconds`: how often observer windows check ownership state. Default: `60`.
+- `leetcode.authSync.ownerStaleAfterSeconds`: how long a missing heartbeat must remain stale before an observer may take over. Default: `120`.
 - `leetcode.authSync.secret`: optional shared secret. If set, the browser extension must use the same value.
 
 To sign in from VS Code, choose `Auto Cookie Sync` from the login picker. VS Code shows a waiting progress notification until the browser extension sends a valid cookie, then the LeetCode side bar refreshes automatically.
+
+If the configured port is already owned by another VS Code window, `Force Start Browser Auth Sync Server` asks that window to release the listener and then makes the current window the owner. If another program owns the port, the command refuses to stop it and shows copyable inspection/stop commands in the LeetCode output channel.
 
 ### Browser Extension Setup
 
@@ -133,8 +140,8 @@ npm run auth-sync:icons
 Publication of the VS Code extension is handled by `.github/workflows/vscode-extension.yml`. It uses `vscode-extension-v*` release tags so it is independent from the browser extension release lane:
 
 ```bash
-git tag vscode-extension-v0.18.5
-git push origin vscode-extension-v0.18.5
+git tag vscode-extension-v0.18.7
+git push origin vscode-extension-v0.18.7
 ```
 
 The workflow verifies that the tag matches `package.json` before publishing. Add `VSCE_PAT` to the `vscode-marketplace` GitHub Actions environment; the token must be an Azure DevOps Personal Access Token with Marketplace `Manage` scope for the publisher in `package.json`.

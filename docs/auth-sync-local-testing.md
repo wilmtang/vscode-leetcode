@@ -19,10 +19,15 @@ VS Code extension:
 - Added settings:
   - `leetcode.authSync.enabled`
   - `leetcode.authSync.port`
+  - `leetcode.authSync.ownerHeartbeatIntervalSeconds`
+  - `leetcode.authSync.observerCheckIntervalSeconds`
+  - `leetcode.authSync.ownerStaleAfterSeconds`
   - `leetcode.authSync.secret`
 - Added commands:
   - `LeetCode: Show Browser Auth Sync Status`
   - `LeetCode: Restart Browser Auth Sync Server`
+  - `LeetCode: Force Start Browser Auth Sync Server`
+- Added single-owner coordination for multiple VS Code windows. The owner window listens on the configured port and writes a heartbeat to VS Code global state; other windows observe shared auth sync state and can take over after a stale heartbeat.
 - Added `Auto Cookie Sync` to the login picker as the recommended sign-in path.
 - Refactored cookie login into `leetCodeManager.updateSessionFromCookie(cookie)` so manual cookie login, URI login, and browser sync all update the same session path.
 
@@ -92,6 +97,12 @@ The receiver endpoint is:
 POST http://127.0.0.1:17899/auth/update
 ```
 
+The health endpoint is:
+
+```text
+GET http://127.0.0.1:17899/health
+```
+
 To inspect listener state, open the VS Code Command Palette and run:
 
 ```text
@@ -104,7 +115,21 @@ To restart it:
 LeetCode: Restart Browser Auth Sync Server
 ```
 
+To make the current VS Code window take ownership of the configured port:
+
+```text
+LeetCode: Force Start Browser Auth Sync Server
+```
+
+If another VS Code window owns the listener, that command asks the owner to release the listener and then starts the server in the current window. If another program owns the port, the command does not kill it; it reports the process it found and writes copyable inspect/stop commands to the LeetCode output channel.
+
 If you need another port, set `leetcode.authSync.port` in VS Code settings. The server restarts when the setting changes.
+
+For multi-window timing, these settings default to conservative values:
+
+- `leetcode.authSync.ownerHeartbeatIntervalSeconds`: `30`
+- `leetcode.authSync.observerCheckIntervalSeconds`: `60`
+- `leetcode.authSync.ownerStaleAfterSeconds`: `120`
 
 ## Install the VS Code Extension Locally
 

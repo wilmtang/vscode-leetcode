@@ -11,7 +11,13 @@ import * as show from "./commands/show";
 import * as star from "./commands/star";
 import * as submit from "./commands/submit";
 import * as test from "./commands/test";
-import { authSyncServer } from "./auth/authSyncServer";
+import {
+    AuthSyncForceStartResult,
+    AuthSyncOwnerInfo,
+    authSyncServer,
+    IAuthSyncStatusSnapshot,
+} from "./auth/authSyncServer";
+import { IAuthSyncPortConflict } from "./auth/authSyncPortInspector";
 import { explorerNodeManager } from "./explorer/explorerNodeManager";
 import { LeetCodeNode } from "./explorer/LeetCodeNode";
 import { leetCodeTreeDataProvider } from "./explorer/LeetCodeTreeDataProvider";
@@ -95,11 +101,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             vscode.commands.registerCommand("leetcode.problems.sort", () => plugin.switchSortingStrategy()),
             vscode.commands.registerCommand("leetcode.authSync.status", () => showAuthSyncStatus()),
             vscode.commands.registerCommand("leetcode.authSync.restart", () => restartAuthSyncServer()),
+            vscode.commands.registerCommand("leetcode.authSync.forceStart", () => forceStartAuthSyncServer()),
             vscode.workspace.onDidChangeConfiguration((event: vscode.ConfigurationChangeEvent) => {
                 if (
                     event.affectsConfiguration("leetcode.authSync.enabled") ||
                     event.affectsConfiguration("leetcode.authSync.port") ||
-                    event.affectsConfiguration("leetcode.authSync.secret")
+                    event.affectsConfiguration("leetcode.authSync.secret") ||
+                    event.affectsConfiguration("leetcode.authSync.ownerHeartbeatIntervalSeconds") ||
+                    event.affectsConfiguration("leetcode.authSync.observerCheckIntervalSeconds") ||
+                    event.affectsConfiguration("leetcode.authSync.ownerStaleAfterSeconds")
                 ) {
                     void restartAuthSyncServer(false);
                 }
@@ -117,8 +127,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
 }
 
-export function deactivate(): void {
-    // Do nothing.
+export async function deactivate(): Promise<void> {
+    await authSyncServer.stop();
 }
 
 async function startAuthSyncServer(): Promise<void> {
@@ -149,29 +159,110 @@ function showAuthSyncStatus(): void {
     const enabled: boolean = config.get<boolean>("authSync.enabled", true);
     const port: number = config.get<number>("authSync.port", 17899);
     const secret: string = config.get<string>("authSync.secret", "");
-    const running: boolean = authSyncServer.isRunning();
-    const activePort: number | undefined = authSyncServer.getPort();
+    const snapshot: IAuthSyncStatusSnapshot = authSyncServer.getStatusSnapshot();
+    const activePort: number | undefined = snapshot.port ?? authSyncServer.getPort();
     const lastSyncedAt: number | undefined = globalState.getAuthSyncLastSyncedAt();
 
-    // Build unified server status
     let serverStatus: string;
     if (!enabled) {
         serverStatus = "Disabled";
-    } else if (running) {
-        serverStatus = `Listening on port ${activePort ?? port}`;
+    } else if (snapshot.mode === "local") {
+        serverStatus = `Listening on port ${activePort ?? port} in this window (${formatCurrentWindow(snapshot)})`;
+    } else if (snapshot.mode === "observer") {
+        serverStatus = `Observer on port ${activePort ?? port}. Owner window: ${formatOwner(snapshot.owner)}. This window: ${formatCurrentWindow(snapshot)}`;
+    } else if (snapshot.mode === "conflict") {
+        const conflict: string = snapshot.conflict ? ` Used by ${snapshot.conflict.summary}.` : "";
+        serverStatus = `Not running because port ${activePort ?? port} is used by another program.${conflict}`;
     } else {
-        serverStatus = `Not running — failed to start on port ${port} (port may be in use)`;
+        serverStatus = `Not running on port ${port}`;
     }
 
-    // Build last sync description
     const lastSync: string = lastSyncedAt
         ? new Date(lastSyncedAt).toLocaleString()
         : "No cookies synced yet";
-
-    // Build secret status
     const secretStatus: string = secret ? "configured" : "none";
+    const timing: string = `heartbeat ${formatDuration(snapshot.ownershipSettings.heartbeatMs)}, observer check ${formatDuration(snapshot.ownershipSettings.observerCheckMs)}, stale after ${formatDuration(snapshot.ownershipSettings.ownerStaleMs)}`;
 
     vscode.window.showInformationMessage(
-        `Auth Sync: ${serverStatus}. Secret: ${secretStatus}. Last sync: ${lastSync}.`
+        `Last sync: ${lastSync}. Auth Sync: ${serverStatus}. Secret: ${secretStatus}. Timing: ${timing}.`
     );
+}
+
+async function forceStartAuthSyncServer(): Promise<void> {
+    const forceStart: vscode.MessageItem = { title: "Force Start" };
+    const cancel: vscode.MessageItem = { title: "Cancel", isCloseAffordance: true };
+    const choice: vscode.MessageItem | undefined = await vscode.window.showWarningMessage(
+        "Force this VS Code window to own the LeetCode Auth Sync port? If another VS Code window owns it, that listener will be released first.",
+        { modal: true },
+        forceStart,
+        cancel
+    );
+
+    if (choice !== forceStart) {
+        return;
+    }
+
+    const result: AuthSyncForceStartResult = await authSyncServer.forceStart();
+    switch (result.kind) {
+        case "disabled":
+            vscode.window.showWarningMessage("Browser Auth Sync is disabled. Enable `leetcode.authSync.enabled` before force starting the listener.");
+            return;
+        case "started":
+            vscode.window.showInformationMessage(`LeetCode auth sync server is now listening in this window on port ${result.port}.`);
+            return;
+        case "claimed":
+            vscode.window.showInformationMessage(`LeetCode auth sync server moved to this window on port ${result.port}. Previous owner: ${formatOwner(result.previousOwner)}.`);
+            return;
+        case "releaseFailed":
+            vscode.window.showErrorMessage(`Failed to release the current LeetCode auth sync owner${result.owner ? ` (${formatOwner(result.owner)})` : ""}: ${result.message}`);
+            return;
+        case "portConflict":
+            await showPortConflictPrompt(result.conflict);
+            return;
+        default:
+            return;
+    }
+}
+
+async function showPortConflictPrompt(conflict: IAuthSyncPortConflict): Promise<void> {
+    leetCodeChannel.appendLine("[auth-sync] Force start failed because the configured port is not owned by LeetCode Auth Sync.");
+    leetCodeChannel.appendLine(conflict.details);
+
+    const openOutput: vscode.MessageItem = { title: "Open Output" };
+    const copyInspect: vscode.MessageItem = { title: "Copy Inspect Command" };
+    const copyStop: vscode.MessageItem = { title: "Copy Stop Command" };
+    const choices: vscode.MessageItem[] = conflict.stopCommand
+        ? [openOutput, copyInspect, copyStop]
+        : [openOutput, copyInspect];
+    const result: vscode.MessageItem | undefined = await vscode.window.showErrorMessage(
+        `Auth Sync cannot force start on port ${conflict.port}. The port is used by ${conflict.summary}, not this extension.`,
+        ...choices
+    );
+
+    if (result === openOutput) {
+        leetCodeChannel.show();
+    } else if (result === copyInspect) {
+        await vscode.env.clipboard.writeText(conflict.inspectCommand);
+        vscode.window.showInformationMessage("Copied auth sync port inspect command.");
+    } else if (result === copyStop && conflict.stopCommand) {
+        await vscode.env.clipboard.writeText(conflict.stopCommand);
+        vscode.window.showInformationMessage("Copied auth sync port stop command.");
+    }
+}
+
+function formatOwner(owner: AuthSyncOwnerInfo | undefined): string {
+    if (!owner) {
+        return "unknown";
+    }
+
+    const heartbeat: string = owner.heartbeatAt ? new Date(owner.heartbeatAt).toLocaleString() : "unknown";
+    return `${owner.windowLabel} (PID ${owner.pid}, window ${owner.windowId}, heartbeat ${heartbeat})`;
+}
+
+function formatCurrentWindow(snapshot: IAuthSyncStatusSnapshot): string {
+    return `${snapshot.currentWindow.windowLabel}, PID ${snapshot.currentWindow.pid}, window ${snapshot.currentWindow.windowId}`;
+}
+
+function formatDuration(ms: number): string {
+    return `${Math.round(ms / 1000)}s`;
 }
