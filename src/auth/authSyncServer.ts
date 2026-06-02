@@ -8,6 +8,7 @@ import * as vscode from "vscode";
 import { globalState, IAuthSyncOwnerRecord, IBrowserRequestHeaders } from "../globalState";
 import { leetCodeChannel } from "../leetCodeChannel";
 import { leetCodeManager } from "../leetCodeManager";
+import { UserStatus } from "../shared";
 import { describePortOwner, IAuthSyncPortConflict } from "./authSyncPortInspector";
 
 const DEFAULT_PORT: number = 17899;
@@ -407,7 +408,11 @@ class AuthSyncServer implements vscode.Disposable {
         if (browserRequestHeaders && Object.keys(browserRequestHeaders).length > 0) {
             leetCodeChannel.appendLine(`[auth-sync] Captured ${Object.keys(browserRequestHeaders).length} browser request headers for direct judge requests.`);
         }
-        await leetCodeManager.updateSessionFromCookie(cookie, browserUserAgent, browserRequestHeaders);
+        if (leetCodeManager.getStatus() === UserStatus.SignedOut) {
+            await leetCodeManager.updateSessionFromCookie(cookie, browserUserAgent, browserRequestHeaders);
+        } else {
+            await leetCodeManager.updateSyncedBrowserData(cookie, browserUserAgent, browserRequestHeaders);
+        }
         await globalState.setAuthSyncLastSyncedAt(Date.now());
 
         this.sendJson(res, 200, { ok: true, message: "LeetCode cookie synced." });
@@ -693,13 +698,7 @@ class AuthSyncServer implements vscode.Disposable {
             return;
         }
 
-        const shouldRefreshLoginStatus: boolean = !!this.lastObservedAuthSyncAt && this.mode === "observer";
         this.lastObservedAuthSyncAt = lastSyncedAt;
-
-        if (shouldRefreshLoginStatus) {
-            leetCodeChannel.appendLine("[auth-sync] Observed cookie sync from owner window. Refreshing this window's LeetCode status.");
-            void leetCodeManager.getLoginStatus();
-        }
     }
 
     private async writeOwnerHeartbeat(): Promise<void> {

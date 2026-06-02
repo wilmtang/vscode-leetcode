@@ -44,13 +44,7 @@ class LeetCodeManager extends EventEmitter {
     }
 
     public async updateSessionFromCookie(cookie: string, browserUserAgent?: string, browserRequestHeaders?: IBrowserRequestHeaders): Promise<void> {
-        globalState.setCookie(cookie);
-        if (browserUserAgent) {
-            globalState.setBrowserUserAgent(browserUserAgent);
-        }
-        if (browserRequestHeaders && Object.keys(browserRequestHeaders).length > 0) {
-            globalState.setBrowserRequestHeaders(browserRequestHeaders);
-        }
+        await this.updateSyncedBrowserData(cookie, browserUserAgent, browserRequestHeaders);
         const data = await queryUserData();
         if (!data.isSignedIn || !data.username) {
             throw new Error("LeetCode did not return a signed-in user for the synced cookie.");
@@ -62,6 +56,16 @@ class LeetCodeManager extends EventEmitter {
         this.currentUser = data.username;
         this.userStatus = UserStatus.SignedIn;
         this.emit("statusChanged");
+    }
+
+    public async updateSyncedBrowserData(cookie: string, browserUserAgent?: string, browserRequestHeaders?: IBrowserRequestHeaders): Promise<void> {
+        await globalState.setCookie(cookie);
+        if (browserUserAgent) {
+            await globalState.setBrowserUserAgent(browserUserAgent);
+        }
+        if (browserRequestHeaders && Object.keys(browserRequestHeaders).length > 0) {
+            await globalState.setBrowserRequestHeaders(browserRequestHeaders);
+        }
     }
 
     public async handleUriSignIn(uri: vscode.Uri): Promise<void> {
