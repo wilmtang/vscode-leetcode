@@ -4,7 +4,8 @@ const nextSyncElement = document.getElementById("next-sync");
 const lastIssueRow = document.getElementById("last-issue-row");
 const lastIssueElement = document.getElementById("last-issue");
 const statusElement = document.getElementById("status");
-const syncButton = document.getElementById("sync-now");
+const cookieOnlySection = document.getElementById("cookie-only-section");
+const cookieOnlySyncButton = document.getElementById("cookie-only-sync");
 const optionsButton = document.getElementById("open-options");
 
 let currentSettings = null;
@@ -14,10 +15,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     setInterval(renderSettings, 30 * 1000);
 });
 
-syncButton.addEventListener("click", async () => {
-    setStatus("Syncing...", "");
-    const result = await sendMessage({ type: "syncNow", reason: "popup" });
-    setStatus(result.ok ? result.message || "Synced your LeetCode session to VS Code." : result.error, getStatusKind(result));
+cookieOnlySyncButton.addEventListener("click", async () => {
+    setStatus("Sending cookies only...", "");
+    const result = await sendMessage({ type: "syncNow", reason: "popup-cookie-only" });
+    setStatus(result.ok ? result.message || "Cookie-only sync sent to VS Code." : result.error, getStatusKind(result));
     await refreshSettings();
 });
 
@@ -38,6 +39,8 @@ function renderSettings() {
     summaryElement.textContent = formatConnection(currentSettings);
     lastSyncElement.textContent = formatTimestamp(currentSettings.lastSyncAt);
     nextSyncElement.textContent = formatNextSync(currentSettings);
+    cookieOnlySection.hidden = currentSettings.showCookieOnlyButton !== true;
+    cookieOnlySyncButton.hidden = currentSettings.showCookieOnlyButton !== true;
     renderLastIssue(currentSettings);
 }
 

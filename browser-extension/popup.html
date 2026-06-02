@@ -10,7 +10,7 @@
 <body class="popup">
     <main class="panel">
         <h1>LeetCode Auth Sync</h1>
-        <p class="summary">Syncs your signed-in LeetCode session to the VS Code extension on this machine.</p>
+        <p class="summary">Syncs your LeetCode browser session to the VS Code extension on this machine.</p>
 
         <dl class="sync-details">
             <div>
@@ -31,8 +31,18 @@
             </div>
         </dl>
 
+        <section class="sync-mode">
+            <h2>Header sync</h2>
+            <p>Refresh leetcode.com, or click Run Code/Test on LeetCode. The extension captures cookies and browser request headers only from that real LeetCode request.</p>
+        </section>
+
+        <section id="cookie-only-section" class="sync-mode" hidden>
+            <h2>Cookie-only sync</h2>
+            <p>Sends cookies immediately. It cannot capture Cloudflare or browser request headers, so it may not help VS Code Test.</p>
+        </section>
+
         <div class="actions">
-            <button id="sync-now" type="button">Sync now</button>
+            <button id="cookie-only-sync" type="button" hidden>Cookie-only sync</button>
             <button id="open-options" type="button" class="secondary">Settings</button>
         </div>
         <p id="status" class="status" role="status"></p>

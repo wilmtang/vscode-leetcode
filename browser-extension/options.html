@@ -38,9 +38,17 @@
                 <small>Minimum minutes between successful session sends. Default: 30.</small>
             </label>
 
+            <label class="check-row">
+                <input id="show-cookie-only-button" type="checkbox">
+                <span>
+                    <strong>Show cookie-only sync button</strong>
+                    <small>Adds a manual popup button that sends cookies immediately. It cannot capture Cloudflare or browser request headers; refresh leetcode.com, or click Run Code/Test on LeetCode, to capture those headers from a real request.</small>
+                </span>
+            </label>
+
             <div class="actions">
                 <button type="submit">Save</button>
-                <button id="sync-now" type="button" class="secondary">Sync now</button>
+                <button id="sync-now" type="button" class="secondary">Cookie-only sync</button>
             </div>
 
             <p id="status" class="status" role="status"></p>

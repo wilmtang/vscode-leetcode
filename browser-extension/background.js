@@ -3,6 +3,7 @@ const DEFAULTS = {
     port: 17899,
     secret: "",
     cooldownMinutes: 30,
+    showCookieOnlyButton: false,
     lastSyncAt: 0,
     lastSyncError: "",
     lastSyncErrorAt: 0,
@@ -22,6 +23,7 @@ async function getSettings() {
         port: normalizePort(stored.port),
         secret: typeof stored.secret === "string" ? stored.secret : "",
         cooldownMinutes: normalizeCooldownMinutes(stored.cooldownMinutes),
+        showCookieOnlyButton: stored.showCookieOnlyButton === true,
         lastSyncAt: normalizeTimestamp(stored.lastSyncAt),
         lastSyncError: typeof stored.lastSyncError === "string" ? stored.lastSyncError : "",
         lastSyncErrorAt: normalizeTimestamp(stored.lastSyncErrorAt),
@@ -37,6 +39,7 @@ async function saveSettings(settings) {
         port: normalizePort(settings.port),
         secret: typeof settings.secret === "string" ? settings.secret : "",
         cooldownMinutes: normalizeCooldownMinutes(settings.cooldownMinutes),
+        showCookieOnlyButton: settings.showCookieOnlyButton === true,
     });
 }
 

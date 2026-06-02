@@ -2,6 +2,7 @@ const enabledInput = document.getElementById("enabled");
 const portInput = document.getElementById("port");
 const secretInput = document.getElementById("secret");
 const cooldownMinutesInput = document.getElementById("cooldown-minutes");
+const showCookieOnlyButtonInput = document.getElementById("show-cookie-only-button");
 const statusElement = document.getElementById("status");
 const form = document.getElementById("options-form");
 const syncButton = document.getElementById("sync-now");
@@ -15,9 +16,9 @@ form.addEventListener("submit", async (event) => {
 
 syncButton.addEventListener("click", async () => {
     await saveSettings(false);
-    setStatus("Syncing...", "");
-    const result = await sendMessage({ type: "syncNow", reason: "options" });
-    setStatus(result.ok ? result.message || "Synced your LeetCode session to VS Code." : result.error, getStatusKind(result));
+    setStatus("Sending cookies only...", "");
+    const result = await sendMessage({ type: "syncNow", reason: "options-cookie-only" });
+    setStatus(result.ok ? result.message || "Cookie-only sync sent to VS Code." : result.error, getStatusKind(result));
 });
 
 async function loadSettings() {
@@ -26,6 +27,7 @@ async function loadSettings() {
     portInput.value = settings.port || 17899;
     secretInput.value = settings.secret || "";
     cooldownMinutesInput.value = settings.cooldownMinutes || 30;
+    showCookieOnlyButtonInput.checked = settings.showCookieOnlyButton === true;
 }
 
 async function saveSettings(showSaved = true) {
@@ -36,6 +38,7 @@ async function saveSettings(showSaved = true) {
             port: portInput.value,
             secret: secretInput.value,
             cooldownMinutes: cooldownMinutesInput.value,
+            showCookieOnlyButton: showCookieOnlyButtonInput.checked,
         },
     });
 

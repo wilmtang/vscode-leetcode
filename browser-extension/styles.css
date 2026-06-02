@@ -71,6 +71,13 @@ h1 {
     letter-spacing: 0;
 }
 
+h2 {
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: 650;
+    letter-spacing: 0;
+}
+
 .panel {
     padding: 20px;
     background: var(--panel-bg);
@@ -164,6 +171,17 @@ input[type="checkbox"] {
     margin: 0;
     color: var(--text);
     overflow-wrap: anywhere;
+}
+
+.sync-mode {
+    margin: 0 0 14px;
+    padding: 10px 0 0;
+    border-top: 1px solid var(--border);
+}
+
+.sync-mode p {
+    margin: 0;
+    color: var(--muted);
 }
 
 .issue-row dd {
