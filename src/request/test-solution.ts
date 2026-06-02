@@ -67,6 +67,11 @@ interface ICheckResult {
     total_testcases?: number;
 }
 
+interface IRequestContext {
+    label: string;
+    logMode?: boolean;
+}
+
 export async function testSolutionWithSyncedCookie(filePath: string, testString?: string): Promise<string> {
     const cookie: string | undefined = globalState.getCookie();
     if (!cookie) {
@@ -166,7 +171,7 @@ async function getQuestionDetail(slug: string, cookie: string, referer: string):
             variables: { titleSlug: slug },
             operationName: "getQuestionDetail",
         },
-    });
+    }, { label: "problem metadata" });
     const question: IQuestionDetail | undefined = response.data && response.data.question;
     if (!question) {
         throw new DirectTestUnsupportedError(`Cannot load LeetCode problem details for "${slug}".`);
@@ -190,15 +195,17 @@ async function runCode(meta: ISolutionFileMeta, question: IQuestionDetail, testc
                 question_id: question.questionId,
                 typed_code: meta.code,
             },
-        });
+        }, { label: "run-code enqueue", logMode: true });
 
         if (!task.error) {
             return task;
         }
         if (/session expired/i.test(task.error)) {
+            leetCodeChannel.appendLine(`[test] Failure cause: LeetCode run-code response error: ${task.error}`);
             throw new DirectTestUnsupportedError("Direct LeetCode run-code request returned: session expired.", false);
         }
         if (task.error.indexOf("too soon") < 0) {
+            leetCodeChannel.appendLine(`[test] Failure cause: LeetCode run-code response error: ${task.error}`);
             throw new Error(task.error);
         }
 
@@ -216,7 +223,7 @@ async function verifyResult(id: string, cookie: string, referer: string): Promis
             method: "GET",
             url,
             headers: createHeaders(cookie, referer),
-        });
+        }, { label: "judge result poll" });
         if (result.state === "SUCCESS") {
             return result;
         }
@@ -227,40 +234,78 @@ async function verifyResult(id: string, cookie: string, referer: string): Promis
     throw new Error("Timed out waiting for LeetCode judge result.");
 }
 
-async function requestJson<T>(config: AxiosRequestConfig): Promise<T> {
-    const response: AxiosResponse<T> = await axios({
-        ...config,
-        validateStatus: () => true,
-    });
+async function requestJson<T>(config: AxiosRequestConfig, context: IRequestContext): Promise<T> {
+    if (context.logMode) {
+        leetCodeChannel.appendLine(`[test] Request mode: node/axios (${context.label}).`);
+    }
+
+    let response: AxiosResponse<T>;
+    try {
+        response = await axios({
+            ...config,
+            validateStatus: () => true,
+        });
+    } catch (error) {
+        const message: string = getErrorMessage(error);
+        leetCodeChannel.appendLine(`[test] Failure cause: node/axios transport error (${context.label}): ${message}`);
+        throw new Error(`node/axios request failed (${context.label}): ${message}`);
+    }
 
     if (response.status === 401 || response.status === 403) {
         if (isCloudflareChallenge(response.data)) {
-            leetCodeChannel.appendLine("[test] Node HTTP was challenged by Cloudflare; retrying judge request with curl.");
-            return requestJsonWithCurl<T>(config);
+            leetCodeChannel.appendLine(`[test] Failure cause: Cloudflare challenge page from node/axios (${context.label}, HTTP ${response.status}).`);
+            leetCodeChannel.appendLine(`[test] Request mode: curl (${context.label}).`);
+            return requestJsonWithCurl<T>(config, context);
         }
 
-        throw new DirectTestUnsupportedError(`Direct LeetCode request was rejected: HTTP ${response.status}${summarizeResponseData(response.data)}.`, false);
+        leetCodeChannel.appendLine(`[test] Failure cause: LeetCode rejected node/axios request (${context.label}, HTTP ${response.status}).`);
+        throw new DirectTestUnsupportedError(`Direct LeetCode request was rejected by node/axios (${context.label}): HTTP ${response.status}${summarizeResponseData(response.data)}.`, false);
     }
     if (response.status !== 200) {
-        throw new Error(`http error [code=${response.status}]`);
+        leetCodeChannel.appendLine(`[test] Failure cause: unexpected node/axios HTTP status (${context.label}, HTTP ${response.status}).`);
+        throw new Error(`node/axios http error (${context.label}) [code=${response.status}]`);
+    }
+
+    if (context.logMode) {
+        leetCodeChannel.appendLine(`[test] node/axios request succeeded (${context.label}).`);
     }
 
     return response.data;
 }
 
-async function requestJsonWithCurl<T>(config: AxiosRequestConfig): Promise<T> {
-    const response: ICurlResponse = await executeCurl(config);
+async function requestJsonWithCurl<T>(config: AxiosRequestConfig, context: IRequestContext): Promise<T> {
+    let response: ICurlResponse;
+    try {
+        response = await executeCurl(config);
+    } catch (error) {
+        const message: string = getErrorMessage(error);
+        leetCodeChannel.appendLine(`[test] Failure cause: curl transport error (${context.label}): ${message}`);
+        throw new Error(`curl request failed (${context.label}): ${message}`);
+    }
+
     if (response.status === 401 || response.status === 403) {
-        throw new DirectTestUnsupportedError(`Direct LeetCode curl request was rejected: HTTP ${response.status}${summarizeResponseData(response.body)}.`, false);
+        if (isCloudflareChallenge(response.body)) {
+            leetCodeChannel.appendLine(`[test] Failure cause: Cloudflare challenge page from curl (${context.label}, HTTP ${response.status}).`);
+            throw new DirectTestUnsupportedError(`Direct LeetCode curl request hit Cloudflare challenge (${context.label}): HTTP ${response.status}${summarizeResponseData(response.body)}.`, false);
+        }
+
+        leetCodeChannel.appendLine(`[test] Failure cause: LeetCode rejected curl request (${context.label}, HTTP ${response.status}).`);
+        throw new DirectTestUnsupportedError(`Direct LeetCode curl request was rejected (${context.label}): HTTP ${response.status}${summarizeResponseData(response.body)}.`, false);
     }
     if (response.status !== 200) {
-        throw new Error(`curl http error [code=${response.status}]`);
+        leetCodeChannel.appendLine(`[test] Failure cause: unexpected curl HTTP status (${context.label}, HTTP ${response.status}).`);
+        throw new Error(`curl http error (${context.label}) [code=${response.status}]`);
     }
 
     try {
-        return JSON.parse(response.body) as T;
+        const data: T = JSON.parse(response.body) as T;
+        if (context.logMode) {
+            leetCodeChannel.appendLine(`[test] curl request succeeded (${context.label}).`);
+        }
+        return data;
     } catch (error) {
-        throw new Error(`curl JSON parse failed. Response: ${response.body.slice(0, 200)}`);
+        leetCodeChannel.appendLine(`[test] Failure cause: curl returned non-JSON response (${context.label}).`);
+        throw new Error(`curl JSON parse failed (${context.label}). Response: ${response.body.slice(0, 200)}`);
     }
 }
 
@@ -404,6 +449,14 @@ function summarizeResponseData(data: unknown): string {
     const text: string = typeof data === "string" ? data : JSON.stringify(data);
     const trimmed: string = text.replace(/\s+/g, " ").trim();
     return trimmed ? ` (${trimmed.slice(0, 200)})` : "";
+}
+
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+        return error.message;
+    }
+
+    return String(error);
 }
 
 interface ICurlResponse {

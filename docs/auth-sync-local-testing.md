@@ -1,6 +1,9 @@
 # LeetCode Browser Auth Sync Local Testing
 
 This fork adds a browser-to-VS Code cookie sync path for local LeetCode auth.
+For notes on the `Test` command, Cloudflare challenge handling, full-cookie replay,
+and captured browser request headers, see
+[LeetCode Test Requests, Cloudflare, and Synced Browser Context](./leetcode-test-cloudflare-notes.md).
 
 The browser extension reads the current `leetcode.com` cookies from the browser and sends them to the VS Code extension over a loopback HTTP endpoint. The VS Code extension then reuses the existing cookie login path so both auth stores are updated:
 

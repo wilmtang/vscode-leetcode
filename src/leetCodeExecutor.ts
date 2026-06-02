@@ -187,12 +187,13 @@ class LeetCodeExecutor implements Disposable {
             if (!(error instanceof DirectTestUnsupportedError)) {
                 throw error;
             }
-            leetCodeChannel.appendLine(`[test] ${error.message}`);
+            leetCodeChannel.appendLine(`[test] Direct test path unsupported: ${error.message}`);
             if (!error.allowCliFallback) {
                 throw error;
             }
         }
 
+        leetCodeChannel.appendLine("[test] Request mode: bundled vsc-leetcode-cli test.");
         const cmd: string[] = [await this.getLeetCodeBinaryPath(), "test", `"${filePath}"`];
         if (testString) {
             cmd.push("-t", this.quoteTestStringForCli(testString));
