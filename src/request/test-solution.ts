@@ -7,6 +7,7 @@ import { getUrl } from "../shared";
 import { sleep } from "../utils/toolUtils";
 
 const MAX_VERIFY_ATTEMPTS: number = 60;
+const TEST_JUDGER_QUEUE_NAME: string = "lc-judger-do1";
 
 export class DirectTestUnsupportedError extends Error { }
 
@@ -182,7 +183,8 @@ async function runCode(meta: ISolutionFileMeta, question: IQuestionDetail, testc
                 data_input: testcase,
                 lang: meta.lang,
                 question_id: parseInt(question.questionId, 10),
-                test_mode: false,
+                queue_name: TEST_JUDGER_QUEUE_NAME,
+                test_mode: true,
                 typed_code: meta.code,
             },
         });
@@ -247,7 +249,7 @@ function createHeaders(cookie: string, referer: string): { [key: string]: string
 
     const headers: { [key: string]: string } = {
         "Content-Type": "application/json",
-        "Cookie": `LEETCODE_SESSION=${sessionCookie};csrftoken=${csrfToken};`,
+        "Cookie": cookie,
         "Origin": getUrl("base"),
         "Referer": referer,
         "X-Requested-With": "XMLHttpRequest",
