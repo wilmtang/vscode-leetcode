@@ -7,10 +7,12 @@ import * as os from "os";
 import * as path from "path";
 import * as requireFromString from "require-from-string";
 import { ExtensionContext } from "vscode";
-import { ConfigurationChangeEvent, Disposable, MessageItem, window, workspace, WorkspaceConfiguration } from "vscode";
+import { ConfigurationChangeEvent, Disposable, MessageItem, ProgressLocation, window, workspace, WorkspaceConfiguration } from "vscode";
+import { DirectTestUnsupportedError, testSolutionWithSyncedCookie } from "./request/test-solution";
 import { Endpoint, IProblem, leetcodeHasInited, supportedPlugins } from "./shared";
 import { executeCommand, executeCommandWithProgress } from "./utils/cpUtils";
 import { normalizeTemplateComments } from "./utils/codeTemplateUtils";
+import { isWindows, usingCmd } from "./utils/osUtils";
 import { DialogOptions, openUrl } from "./utils/uiUtils";
 import * as wsl from "./utils/wslUtils";
 import { toWslPath, useWsl } from "./utils/wslUtils";
@@ -175,10 +177,22 @@ class LeetCodeExecutor implements Disposable {
     }
 
     public async testSolution(filePath: string, testString?: string): Promise<string> {
-        if (testString) {
-            return await this.executeCommandWithProgressEx("Submitting to LeetCode...", this.nodeExecutable, [await this.getLeetCodeBinaryPath(), "test", `"${filePath}"`, "-t", `${testString}`]);
+        try {
+            return await window.withProgress({ location: ProgressLocation.Notification }, async (p) => {
+                p.report({ message: "Submitting to LeetCode..." });
+                return await testSolutionWithSyncedCookie(filePath, testString);
+            });
+        } catch (error) {
+            if (!(error instanceof DirectTestUnsupportedError)) {
+                throw error;
+            }
         }
-        return await this.executeCommandWithProgressEx("Submitting to LeetCode...", this.nodeExecutable, [await this.getLeetCodeBinaryPath(), "test", `"${filePath}"`]);
+
+        const cmd: string[] = [await this.getLeetCodeBinaryPath(), "test", `"${filePath}"`];
+        if (testString) {
+            cmd.push("-t", this.quoteTestStringForCli(testString));
+        }
+        return await this.executeCommandWithProgressEx("Submitting to LeetCode...", this.nodeExecutable, cmd);
     }
 
     public async switchEndpoint(endpoint: string): Promise<string> {
@@ -235,6 +249,19 @@ class LeetCodeExecutor implements Disposable {
             return await executeCommandWithProgress(message, "wsl", [command].concat(args), options);
         }
         return await executeCommandWithProgress(message, command, args, options);
+    }
+
+    private quoteTestStringForCli(testString: string): string {
+        const normalized: string = testString.replace(/\r\n|\n|\r/g, "\\n");
+        if (wsl.useWsl() || !isWindows()) {
+            return `'${normalized.replace(/'/g, `'\\''`)}'`;
+        }
+
+        if (usingCmd()) {
+            return `"${normalized.replace(/"/g, '\\"')}"`;
+        }
+
+        return `'${normalized.replace(/'/g, "''")}'`;
     }
 
     private async removeOldCache(): Promise<void> {
