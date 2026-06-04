@@ -25,6 +25,9 @@ async function main() {
         process.exit(1);
     }
 
+    console.log("Waiting 10 seconds for the Web Store to process the uploaded package before publishing...");
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+
     const publishResult = await publishItem(accessToken);
     console.log(`Chrome Web Store publish response: ${JSON.stringify(publishResult)}`);
 }
