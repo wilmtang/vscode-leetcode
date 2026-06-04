@@ -14,7 +14,36 @@ It is not affiliated with, endorsed by, sponsored by, or published by LeetCode.
 The original project's MIT license and copyright notices are preserved in
 [LICENSE](LICENSE), with additional fork attribution in [NOTICE.md](NOTICE.md).
 
-## For Users: Install and Use
+## Why This Plugin
+
+If you use LeetCode from VS Code, authentication should not be the hard part.
+When you are already signed in to LeetCode in your browser, this extension helps
+VS Code use that same session for browsing problems, running tests, and
+submitting solutions.
+
+Many older LeetCode VS Code workflows can break when LeetCode updates its web
+authentication, CSRF handling, or bot-protection checks. Users may end up
+manually copying cookies or CSRF tokens, only to hit confusing login errors later
+when a test run or submission goes through a different request path.
+
+LeetCode with Auth Sync is built for that reality:
+
+- **No manual token copying:** sign in to `leetcode.com` in your browser, then
+  sync the active browser session into VS Code.
+- **More reliable test and submit:** VS Code uses the same authenticated session
+  context as your browser, which helps avoid stale-cookie and CSRF mismatch
+  failures.
+- **Clearer troubleshooting:** if LeetCode or Cloudflare still blocks a request,
+  the extension reports a direct auth-sync/debug message instead of leaving you
+  with a vague login failure.
+- **Local-first sync:** browser session data is sent only to the VS Code listener
+  running on `127.0.0.1`; it is not sent to a third-party server by this
+  extension.
+
+The goal is simple: if you have access to LeetCode, you should be able to solve
+problems where you are most productive, including inside VS Code.
+
+## How to Use
 
 This repository has two installable pieces:
 
