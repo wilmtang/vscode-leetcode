@@ -38,7 +38,7 @@
     },
     "browser_specific_settings": {
         "gecko": {
-            "id": "leetcode-vscode-auth-sync@wilmtang",
+            "id": "leetcode-vscode-auth-sync@leetcode-open-source",
             "strict_min_version": "140.0",
             "data_collection_permissions": {
                 "required": [
