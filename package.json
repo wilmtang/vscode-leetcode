@@ -790,7 +790,8 @@
         "auth-sync:build:chrome": "node scripts/build-browser-extension-package.js --browser chrome",
         "auth-sync:publish:chrome": "node scripts/publish-chrome-web-store.js",
         "build": "vsce package --githubBranch main",
-        "vs-publish": "vsce publish --githubBranch main"
+        "vs-publish": "vsce publish --githubBranch main",
+        "ovsx-publish": "ovsx publish"
     },
     "devDependencies": {
         "@types/fs-extra": "^9.0.11",
@@ -802,6 +803,7 @@
         "@types/vscode": "1.57.0",
         "@vscode/vsce": "^3.9.1",
         "adm-zip": "^0.5.17",
+        "ovsx": "^1.0.0",
         "tslint": "^5.20.1",
         "typescript": "^4.3.2",
         "web-ext": "^10.3.0"

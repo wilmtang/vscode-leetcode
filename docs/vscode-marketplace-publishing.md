@@ -1,9 +1,9 @@
-# VS Code Marketplace Publishing
+# VS Code Extension Publishing
 
 The VS Code extension is published by `.github/workflows/vscode-extension.yml`.
 It uses a separate release tag prefix from the browser extension workflows:
 
-- VS Code Marketplace: `vscode-extension-v<package.json version>`
+- VS Code Marketplace and Open VSX Registry: `vscode-extension-v<package.json version>`
 - Chrome Web Store and Firefox Add-ons: `browser-extension-v<browser-extension/manifest.json version>`
 
 For example, publishing VS Code extension version `0.18.8` uses:
@@ -23,9 +23,10 @@ git push origin browser-extension-v0.1.2
 ## Marketplace Setup
 
 The workflow expects a GitHub Actions environment named `vscode-marketplace`
-with one secret:
+with two secrets:
 
 - `VSCE_PAT`
+- `OVSX_PAT`
 
 Create that token from Azure DevOps with these values:
 
@@ -69,18 +70,35 @@ After creating the publisher, verify the PAT locally if needed:
 npx vsce login wilmtang
 ```
 
+## Open VSX Setup
+
+Create or verify the `wilmtang` namespace in Open VSX, then generate an access
+token from the Open VSX user settings. The namespace must match the `publisher`
+field in `package.json`.
+
+If the namespace has not been created yet, run:
+
+```bash
+npx ovsx create-namespace wilmtang -p <open-vsx-token>
+```
+
+The workflow publishes the already-packaged VSIX using the `OVSX_PAT`
+environment secret.
+
 ## GitHub Setup
 
-In GitHub, open the repository settings and add the secret:
+In GitHub, open the repository settings and add the secrets:
 
 ```text
 Settings > Environments > vscode-marketplace > Environment secrets > Add secret
 ```
 
-Use:
+Use these names:
 
 - Name: `VSCE_PAT`
 - Value: the Azure DevOps Personal Access Token
+- Name: `OVSX_PAT`
+- Value: the Open VSX access token
 
 The environment can optionally require manual approval before publishing. The
 workflow still validates and uploads a VSIX artifact without that approval.
@@ -97,11 +115,14 @@ git push origin vscode-extension-v$(node -p "require('./package.json').version")
 ```
 
 The publish job verifies that the tag suffix exactly matches `package.json`.
-If the version and tag do not match, the job fails before publishing.
+If the version and tag do not match, the job fails before publishing to both
+registries. When the tag matches, the same VSIX is published to the VS Code
+Marketplace first and then to the Open VSX Registry. Duplicate versions are
+skipped so a retried release job can finish cleanly.
 
 You can also run the workflow manually from GitHub Actions with `publish=true`.
 Manual publishing uses the current checked-out `package.json` version and does
-not require a tag.
+not require a tag. It publishes to both registries.
 
 ## Manual Upload Fallback
 
@@ -121,3 +142,9 @@ https://marketplace.visualstudio.com/manage/publishers/wilmtang
 Choose `New extension > Visual Studio Code`, select the VSIX, and upload it.
 This can publish a release without a PAT, but it does not replace the PAT for
 GitHub Actions automation. Automated release tags still need `VSCE_PAT`.
+
+To publish the same packaged VSIX to Open VSX manually, run:
+
+```bash
+OVSX_PAT=<open-vsx-token> npm run ovsx-publish -- dist/vscode-leetcode-auth-sync.vsix
+```
