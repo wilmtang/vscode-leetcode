@@ -67,6 +67,43 @@ GET https://leetcode.com/submissions/detail/<interpret_id>/check/
 
 The normal browser request does not include `queue_name` or `test_mode`. Those fields exist in LeetCode's frontend bundle only for a separate test-judger/debug mode.
 
+## Default Testcases and Result Cases
+
+LeetCode exposes multiple testcase fields in the GraphQL problem metadata:
+
+- `sampleTestCase` is only the first sample case.
+- `exampleTestcaseList` is the preferred browser-style list of default cases.
+- `exampleTestcases` is the same default input as one newline-delimited string.
+
+For example, Two Sum returns:
+
+```json
+{
+  "sampleTestCase": "[2,7,11,15]\n9",
+  "exampleTestcaseList": [
+    "[2,7,11,15]\n9",
+    "[3,2,4]\n6",
+    "[3,3]\n6"
+  ]
+}
+```
+
+The browser sends all default cases to `interpret_solution` by joining the testcase list with `\n` and putting that value in the JSON request body as `data_input`. `sampleTestCase` is not a header or cookie; it is a GraphQL response field that can become `data_input` only when the caller chooses it.
+
+The run-code `check` response may include padded result arrays. For Two Sum, LeetCode can return three real cases while arrays such as `code_answer`, `expected_code_answer`, or `std_output_list` contain a trailing empty string:
+
+```json
+{
+  "code_answer": ["[]", "[]", "[]", ""],
+  "expected_code_answer": ["[0,1]", "[1,2]", "[0,1]", ""],
+  "std_output_list": ["", "", "", ""],
+  "compare_result": "000",
+  "total_testcases": 3
+}
+```
+
+The result page must not render the trailing empty array entry as an extra case. Use `total_testcases` as the display case count when it is present, then fall back to `compare_result.length`, then input count, and only then non-empty output/expected/stdout values.
+
 ## Test Execution Order
 
 The `Test` command currently tries requests in this order:
