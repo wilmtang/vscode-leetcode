@@ -609,14 +609,7 @@ function buildCaseResults(actual: ICheckResult, expected: ICheckResult | undefin
     const expectedAnswers: string[] = expected ? arrayFromValue(expected.code_answer) : arrayFromValue(actual.expected_code_answer || actual.expected_output);
     const stdout: string[] = arrayFromValue(actual.std_output_list || actual.code_output || actual.std_output);
     const compareResult: string = actual.compare_result || "";
-    const resultCount: number = Math.max(
-        normalizedInputs.length,
-        outputs.length,
-        expectedAnswers.length,
-        stdout.length,
-        compareResult.length,
-        actual.total_testcases || 0,
-    );
+    const resultCount: number = getDisplayCaseCount(actual, normalizedInputs, outputs, expectedAnswers, stdout, compareResult);
     const cases: ICaseResult[] = [];
 
     for (let index: number = 0; index < resultCount; index++) {
@@ -632,6 +625,41 @@ function buildCaseResults(actual: ICheckResult, expected: ICheckResult | undefin
     }
 
     return cases;
+}
+
+function getDisplayCaseCount(
+    actual: ICheckResult,
+    inputs: string[],
+    outputs: string[],
+    expectedAnswers: string[],
+    stdout: string[],
+    compareResult: string,
+): number {
+    if (actual.total_testcases && actual.total_testcases > 0) {
+        return actual.total_testcases;
+    }
+    if (compareResult.length > 0) {
+        return compareResult.length;
+    }
+    if (inputs.length > 0) {
+        return inputs.length;
+    }
+
+    return Math.max(
+        countNonEmptyPrefix(outputs),
+        countNonEmptyPrefix(expectedAnswers),
+        countNonEmptyPrefix(stdout),
+    );
+}
+
+function countNonEmptyPrefix(values: string[]): number {
+    for (let index: number = values.length - 1; index >= 0; index--) {
+        if (values[index]) {
+            return index + 1;
+        }
+    }
+
+    return 0;
 }
 
 function isCaseAccepted(index: number, allAccepted: boolean, actual: ICheckResult, inputs: string[], compareResult: string): boolean {
