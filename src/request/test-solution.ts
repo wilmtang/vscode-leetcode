@@ -25,6 +25,9 @@ interface ISolutionFileMeta {
 
 interface IQuestionDetail {
     enableRunCode: boolean;
+    exampleTestcaseList?: string[];
+    exampleTestcases?: string;
+    metaData?: string;
     questionFrontendId: string;
     questionId: string;
     sampleTestCase: string;
@@ -46,9 +49,13 @@ interface IRunCodeTask {
 interface ICheckResult {
     code_answer?: string | string[];
     code_output?: string | string[];
+    compare_result?: string;
     compile_error?: string;
+    data_input?: string | string[];
     expected_code_answer?: string | string[];
+    expected_output?: string;
     full_compile_error?: string;
+    full_runtime_error?: string;
     input?: string;
     lang?: string;
     last_testcase?: string;
@@ -62,6 +69,7 @@ interface ICheckResult {
     status_msg: string;
     status_runtime?: string;
     std_output?: string;
+    std_output_list?: string | string[];
     submission_id: string;
     total_correct?: number;
     total_testcases?: number;
@@ -70,6 +78,20 @@ interface ICheckResult {
 interface IRequestContext {
     label: string;
     logMode?: boolean;
+}
+
+interface IQuestionMetaData {
+    params?: unknown[];
+    systemdesign?: boolean;
+}
+
+interface ICaseResult {
+    accepted: boolean;
+    expected: string;
+    input: string;
+    output: string;
+    status: string;
+    stdout: string;
 }
 
 export async function testSolutionWithSyncedCookie(filePath: string, testString?: string): Promise<string> {
@@ -81,7 +103,9 @@ export async function testSolutionWithSyncedCookie(filePath: string, testString?
     const meta: ISolutionFileMeta = await parseSolutionFile(filePath);
     const referer: string = `${getUrl("base")}/problems/${meta.slug}/`;
     const question: IQuestionDetail = await getQuestionDetail(meta.slug, cookie, referer);
-    const testcase: string = normalizeTestcase(testString || question.sampleTestCase);
+    const defaultTestcases: string[] = getDefaultTestcases(question);
+    const testcase: string = normalizeTestcase(testString || defaultTestcases.join("\n"));
+    const testcaseList: string[] = testString ? splitTestcases(testcase, question) : defaultTestcases;
 
     if (!question.enableRunCode) {
         throw new Error("not testable? please submit directly!");
@@ -102,7 +126,7 @@ export async function testSolutionWithSyncedCookie(filePath: string, testString?
         ? await verifyResult(task.interpret_expected_id, cookie, referer)
         : undefined;
 
-    return formatTestResult(actual, expected, testcase);
+    return formatTestResult(actual, expected, testcase, testcaseList);
 }
 
 async function parseSolutionFile(filePath: string): Promise<ISolutionFileMeta> {
@@ -161,6 +185,9 @@ async function getQuestionDetail(slug: string, cookie: string, referer: string):
                 "query getQuestionDetail($titleSlug: String!) {",
                 "  question(titleSlug: $titleSlug) {",
                 "    enableRunCode",
+                "    exampleTestcaseList",
+                "    exampleTestcases",
+                "    metaData",
                 "    questionFrontendId",
                 "    questionId",
                 "    sampleTestCase",
@@ -486,28 +513,173 @@ function normalizeTestcase(testcase: string): string {
     return testcase.replace(/\r\n|\r/g, "\n").replace(/\\n/g, "\n").trim();
 }
 
-function formatTestResult(actual: ICheckResult, expected: ICheckResult | undefined, testcase: string): string {
+function getDefaultTestcases(question: IQuestionDetail): string[] {
+    if (question.exampleTestcaseList && question.exampleTestcaseList.length > 0) {
+        const testcases: string[] = question.exampleTestcaseList.map(normalizeTestcase).filter((value: string) => !!value);
+        if (testcases.length > 0) {
+            return testcases;
+        }
+    }
+
+    const source: string = question.exampleTestcases || question.sampleTestCase;
+    return splitTestcases(source, question);
+}
+
+function splitTestcases(testcase: string | string[] | undefined, question: IQuestionDetail): string[] {
+    if (Array.isArray(testcase)) {
+        return testcase.map(normalizeTestcase).filter((value: string) => !!value);
+    }
+    if (!testcase) {
+        return [];
+    }
+
+    const normalized: string = normalizeTestcase(testcase);
+    if (!normalized) {
+        return [];
+    }
+
+    const inputCount: number = getTestcaseInputCount(question);
+    const lines: string[] = normalized.split("\n");
+    if (inputCount <= 0 || lines.length <= inputCount || lines.length % inputCount !== 0) {
+        return [normalized];
+    }
+
+    const testcases: string[] = [];
+    for (let index: number = 0; index < lines.length; index += inputCount) {
+        testcases.push(lines.slice(index, index + inputCount).join("\n"));
+    }
+
+    return testcases.filter((value: string) => !!value.trim());
+}
+
+function getTestcaseInputCount(question: IQuestionDetail): number {
+    const metaData: IQuestionMetaData = parseQuestionMetaData(question.metaData);
+    if (metaData.systemdesign) {
+        return 2;
+    }
+    if (metaData.params && metaData.params.length > 0) {
+        return metaData.params.length;
+    }
+
+    return 1;
+}
+
+function parseQuestionMetaData(metaData: string | undefined): IQuestionMetaData {
+    if (!metaData) {
+        return {};
+    }
+
+    try {
+        const parsed: unknown = JSON.parse(metaData);
+        if (parsed && typeof parsed === "object") {
+            return parsed as IQuestionMetaData;
+        }
+    } catch (error) {
+        // LeetCode still provides sampleTestCase as a fallback when metadata is malformed.
+    }
+
+    return {};
+}
+
+function formatTestResult(actual: ICheckResult, expected: ICheckResult | undefined, testcase: string, testcaseList: string[]): string {
     const errors: string[] = collectErrors(actual);
     const passed: number = actual.total_correct || 0;
     const total: number = actual.total_testcases || 0;
     const ok: boolean = !!actual.run_success && passed === total && actual.status_msg === "Accepted" && errors.length === 0;
     const state: string = actual.status_msg === "Accepted" ? "Finished" : actual.status_msg;
-    const output: string = formatValue(actual.code_answer);
-    const expectedAnswer: string = expected ? formatValue(expected.code_answer) : formatValue(actual.expected_code_answer);
-    const stdout: string = formatValue(actual.code_output || actual.std_output).replace(/\\n/g, "\n");
-    const runtime: string = actual.status_runtime || "";
+    const cases: ICaseResult[] = buildCaseResults(actual, expected, testcase, testcaseList, ok);
     const lines: string[] = [];
 
     appendLine(lines, ok, state);
     for (const error of errors) {
         appendKeyValue(lines, ok, "Error", error);
     }
-    appendKeyValue(lines, ok, "Your Input", testcase);
-    appendKeyValue(lines, ok, runtime ? `Output (${runtime})` : "Output", output);
-    appendKeyValue(lines, ok, "Expected Answer", expectedAnswer);
-    appendKeyValue(lines, ok, "Stdout", stdout);
+    for (let index: number = 0; index < cases.length; index++) {
+        const result: ICaseResult = cases[index];
+        appendKeyValue(lines, result.accepted, `Case ${index + 1} (${result.status})`, formatCaseResult(result));
+    }
 
     return lines.join("\n") + "\n";
+}
+
+function buildCaseResults(actual: ICheckResult, expected: ICheckResult | undefined, testcase: string, testcaseList: string[], allAccepted: boolean): ICaseResult[] {
+    const inputs: string[] = testcaseList.length > 0 ? testcaseList : arrayFromValue(actual.data_input);
+    const normalizedInputs: string[] = inputs.length > 0 ? inputs : [testcase];
+    const outputs: string[] = arrayFromValue(actual.code_answer);
+    const expectedAnswers: string[] = expected ? arrayFromValue(expected.code_answer) : arrayFromValue(actual.expected_code_answer || actual.expected_output);
+    const stdout: string[] = arrayFromValue(actual.std_output_list || actual.code_output || actual.std_output);
+    const compareResult: string = actual.compare_result || "";
+    const resultCount: number = Math.max(
+        normalizedInputs.length,
+        outputs.length,
+        expectedAnswers.length,
+        stdout.length,
+        compareResult.length,
+        actual.total_testcases || 0,
+    );
+    const cases: ICaseResult[] = [];
+
+    for (let index: number = 0; index < resultCount; index++) {
+        const accepted: boolean = isCaseAccepted(index, allAccepted, actual, normalizedInputs, compareResult);
+        cases.push({
+            accepted,
+            expected: normalizeResultValue(expectedAnswers[index] || ""),
+            input: normalizeResultValue(normalizedInputs[index] || ""),
+            output: normalizeResultValue(outputs[index] || ""),
+            status: accepted ? "Accepted" : getFailedCaseStatus(actual),
+            stdout: normalizeResultValue(stdout[index] || ""),
+        });
+    }
+
+    return cases;
+}
+
+function isCaseAccepted(index: number, allAccepted: boolean, actual: ICheckResult, inputs: string[], compareResult: string): boolean {
+    if (index < compareResult.length) {
+        return compareResult.charAt(index) === "1";
+    }
+    if (allAccepted) {
+        return true;
+    }
+
+    const total: number | undefined = actual.total_testcases;
+    const passed: number | undefined = actual.total_correct;
+    if (total !== undefined && passed !== undefined && total === inputs.length) {
+        return index < passed;
+    }
+
+    const lastTestcase: string = normalizeTestcase(actual.last_testcase || "");
+    if (lastTestcase && normalizeTestcase(inputs[index] || "") === lastTestcase) {
+        return false;
+    }
+
+    return false;
+}
+
+function getFailedCaseStatus(actual: ICheckResult): string {
+    if (actual.status_msg && actual.status_msg !== "Accepted") {
+        return actual.status_msg;
+    }
+
+    return "Wrong Answer";
+}
+
+function formatCaseResult(result: ICaseResult): string {
+    const lines: string[] = [`Status: ${result.status}`];
+    appendCaseField(lines, "Input", result.input);
+    appendCaseField(lines, "Output", result.output);
+    appendCaseField(lines, "Expected Answer", result.expected);
+    appendCaseField(lines, "Stdout", result.stdout);
+    return lines.join("\n");
+}
+
+function appendCaseField(lines: string[], key: string, value: string): void {
+    if (!value) {
+        return;
+    }
+
+    lines.push(`${key}:`);
+    lines.push(value);
 }
 
 function collectErrors(result: ICheckResult): string[] {
@@ -532,13 +704,17 @@ function appendLine(lines: string[], ok: boolean, value: string): void {
     lines.push(`  ${ok ? "✔" : "✘"} ${value}`);
 }
 
-function formatValue(value: string | string[] | undefined): string {
+function arrayFromValue(value: string | string[] | undefined): string[] {
     if (Array.isArray(value)) {
-        return value.join("\n");
+        return value.map(normalizeResultValue);
     }
     if (!value) {
-        return "";
+        return [];
     }
 
-    return value;
+    return [normalizeResultValue(value)];
+}
+
+function normalizeResultValue(value: string): string {
+    return value.replace(/\\n/g, "\n");
 }
