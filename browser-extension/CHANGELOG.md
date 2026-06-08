@@ -3,6 +3,14 @@ All notable changes to the "LeetCode VS Code Auth Sync" browser extension will b
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.1.5]
+### Changed
+- Clarify auth-sync and browser request-header documentation.
+- Wait briefly before publishing uploaded Chrome Web Store packages to avoid the store processing race.
+
+### Fixed
+- Restore the Firefox add-on ID used for release uploads.
+
 ## [0.1.4]
 ### Added
 - Capture and sync LeetCode browser request headers, including Firefox headers, so the VS Code extension can replay authenticated test requests more reliably.

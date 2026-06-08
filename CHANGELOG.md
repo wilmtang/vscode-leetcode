@@ -3,6 +3,14 @@ All notable changes to the "leetcode" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.18.12]
+### Added
+- Publish VS Code extension releases to the Open VSX Registry.
+
+### Changed
+- Render LeetCode run results with example testcase labels and the total testcase count.
+- Clarify auth-sync, telemetry, and LeetCode testcase documentation.
+
 ## [0.18.11]
 ### Added
 - Replay browser-captured LeetCode request headers, including Firefox headers, when running test cases so auth-sync requests better match the signed-in browser session.
