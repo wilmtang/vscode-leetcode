@@ -118,7 +118,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         await leetCodeExecutor.switchEndpoint(plugin.getLeetCodeEndpoint());
         await leetCodeManager.getLoginStatus();
-        vscode.window.registerUriHandler({ handleUri: leetCodeManager.handleUriSignIn });
+        context.subscriptions.push(vscode.window.registerUriHandler({ handleUri: leetCodeManager.handleUriSignIn }));
         await startAuthSyncServer();
     } catch (error) {
         leetCodeChannel.appendLine(error.toString());

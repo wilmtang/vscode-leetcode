@@ -19,12 +19,12 @@ export class LeetCodeTreeItemDecorationProvider implements FileDecorationProvide
             return;
         }
 
-        if (uri.scheme !== "leetcode" && uri.authority !== "problems") {
+        if (uri.scheme !== "leetcode" || uri.authority !== "problems") {
             return;
         }
 
         const params: URLSearchParams = new URLSearchParams(uri.query);
-        const difficulty: string = params.get("difficulty")!.toLowerCase();
+        const difficulty: string = (params.get("difficulty") || "").toLowerCase();
         return {
             badge: this.DIFFICULTY_BADGE_LABEL[difficulty],
             color: this.ITEM_COLOR[difficulty],

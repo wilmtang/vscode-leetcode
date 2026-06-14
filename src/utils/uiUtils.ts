@@ -4,6 +4,7 @@
 import * as vscode from "vscode";
 import { getLeetCodeEndpoint } from "../commands/plugin";
 import { leetCodeChannel } from "../leetCodeChannel";
+import { Endpoint } from "../shared";
 import { getWorkspaceConfiguration } from "./settingUtils";
 
 export namespace DialogOptions {
@@ -47,7 +48,7 @@ export async function promptForSignIn(): Promise<void> {
             await vscode.commands.executeCommand("leetcode.signin");
             break;
         case DialogOptions.singUp:
-            if (getLeetCodeEndpoint()) {
+            if (getLeetCodeEndpoint() === Endpoint.LeetCodeCN) {
                 openUrl("https://leetcode.cn");
             } else {
                 openUrl("https://leetcode.com");

@@ -117,6 +117,16 @@ Important details:
 - `Expire now` from the popup bypasses the cooldown for the next real LeetCode request. The optional `Cookie-only sync` button sends cookies immediately but does not capture browser request headers.
 - Cookie values are sent only to the local VS Code listener and are not intentionally logged by either extension.
 - If `leetcode.authSync.secret` is set, the browser extension must send the same value in the `X-LeetCode-AuthSync-Secret` header.
+- The listener rejects state-changing requests (`/auth/update`, `/auth/release`) that carry a website `Origin` header, and never returns wildcard CORS headers. This blocks a malicious web page from pushing a cookie into your VS Code window through the loopback port. The companion browser extension is unaffected because it reaches the port through its `http://127.0.0.1/*` host permission.
+
+### Security note: the shared secret is optional but recommended
+
+`leetcode.authSync.secret` is **empty by default**, which keeps first-time setup simple. With no secret set, the listener accepts any request that reaches `127.0.0.1:<port>` and contains a valid LeetCode session cookie, as long as it is not identified as a cross-site web request. That means:
+
+- Any **other program running on your machine** (or another local user, on a shared host) can post a LeetCode session to your VS Code window. A hostile local process could sign your editor in as a *different* account, so submissions land on the attacker's profile.
+- The Origin check above stops ordinary websites, but it is defense against browsers, not against native local software.
+
+For anything beyond a single-user personal machine, set `leetcode.authSync.secret` in VS Code and enter the same value in the browser extension settings. The secret is required on every `/auth/update` request, so a process that does not know it cannot inject a session. Treat it like a password and use a long random value.
 
 ## For Contributors: Test Locally
 

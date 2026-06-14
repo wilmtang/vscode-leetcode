@@ -26,7 +26,9 @@ export async function executeCommand(command: string, args: string[], options: c
         childProc.on("error", reject);
 
         childProc.on("close", (code: number) => {
-            if (code !== 0 || result.indexOf("ERROR") > -1) {
+            // leetcode-cli sometimes prints a "[ERROR] ..." line while exiting 0; match that marker
+            // specifically instead of any "ERROR" substring, which can appear in problem content.
+            if (code !== 0 || /\[ERROR\]/i.test(result)) {
                 const error: IExecError = new Error(`Command "${command} ${args.toString()}" failed with exit code "${code}".`);
                 if (result) {
                     error.result = result; // leetcode-cli may print useful content by exit with error code

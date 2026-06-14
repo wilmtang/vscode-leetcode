@@ -36,11 +36,13 @@ const testReportUrl = "https://analysis.lingkou.xyz/i/event";
 const prodReportUrl = "https://analysis.leetcode.cn/i/event";
 
 function getReportUrl(): string {
-    if (process.env.NODE_ENV === "production") {
-        return prodReportUrl;
-    } else {
+    // The packaged extension does not set NODE_ENV, so production must be the default. Only fall
+    // back to the test endpoint when the environment explicitly marks a development/test run.
+    const env: string = (process.env.NODE_ENV || "").toLowerCase();
+    if (env === "development" || env === "test") {
         return testReportUrl;
     }
+    return prodReportUrl;
 }
 
 const _charStr = "abacdefghjklmnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+=";

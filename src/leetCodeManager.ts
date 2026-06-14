@@ -106,7 +106,12 @@ class LeetCodeManager extends EventEmitter {
                 s ? undefined : 'Cookie must not be empty',
         })
 
-        await this.updateSessionFromCookie(cookie || '')
+        if (!cookie) {
+            // User dismissed the input box; abort instead of attempting a login with an empty cookie.
+            return
+        }
+
+        await this.updateSessionFromCookie(cookie)
     }
 
     public async signIn(): Promise<void> {
@@ -357,10 +362,10 @@ class LeetCodeManager extends EventEmitter {
         }
     }
 
-    public setCookieToCli(cookie: string, name: string): Promise<void> {
-        return new Promise(async (resolve: (res: void) => void, reject: (e: Error) => void) => {
-            const leetCodeBinaryPath: string = await leetCodeExecutor.getLeetCodeBinaryPath();
+    public async setCookieToCli(cookie: string, name: string): Promise<void> {
+        const leetCodeBinaryPath: string = await leetCodeExecutor.getLeetCodeBinaryPath();
 
+        return new Promise((resolve: (res: void) => void, reject: (e: Error) => void) => {
             const childProc: cp.ChildProcess = wsl.useWsl()
                 ? cp.spawn("wsl", [leetCodeExecutor.node, leetCodeBinaryPath, "user", loginArgsMapping.get("Cookie") ?? ""], {
                       shell: true,

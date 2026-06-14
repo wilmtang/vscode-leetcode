@@ -155,15 +155,19 @@ class LeetCodePreviewProvider extends LeetCodeWebview {
             ,
             /* accepted */ /* submissions */ /* testcase */ ...body
         ] = descString.split("\n");
+        const valueAfterColon = (line: string | undefined): string => {
+            const segments: string[] = (line || "").split(": ");
+            return segments.length > 1 ? segments[1].trim() : "";
+        };
         return {
             title: problem.name,
-            url,
+            url: url || "",
             tags: problem.tags,
             companies: problem.companies,
-            category: category.slice(2),
-            difficulty: difficulty.slice(2),
-            likes: likes.split(": ")[1].trim(),
-            dislikes: dislikes.split(": ")[1].trim(),
+            category: (category || "").slice(2),
+            difficulty: (difficulty || "").slice(2),
+            likes: valueAfterColon(likes),
+            dislikes: valueAfterColon(dislikes),
             body: body.join("\n").replace(/<pre>[\r\n]*([^]+?)[\r\n]*<\/pre>/g, "<pre><code>$1</code></pre>"),
         };
     }

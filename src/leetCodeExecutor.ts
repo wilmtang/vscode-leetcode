@@ -234,7 +234,7 @@ class LeetCodeExecutor implements Disposable {
         if (!addToFavorite) {
             commandParams.push("-d");
         }
-        await this.executeCommandWithProgressEx("Updating the favorite list...", "node", commandParams);
+        await this.executeCommandWithProgressEx("Updating the favorite list...", this.nodeExecutable, commandParams);
     }
 
     public async getCompaniesAndTags(): Promise<{ companies: { [key: string]: string[] }, tags: { [key: string]: string[] } }> {

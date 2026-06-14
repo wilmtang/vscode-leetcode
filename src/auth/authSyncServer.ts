@@ -22,6 +22,8 @@ const RELEASE_PATH: string = "/auth/release";
 const DEFAULT_HEARTBEAT_SECONDS: number = 30;
 const DEFAULT_OBSERVER_CHECK_SECONDS: number = 60;
 const FORCE_RELEASE_TIMEOUT_MS: number = 10 * 1000;
+const EXTENSION_ORIGIN_SCHEMES: string[] = ["chrome-extension:", "moz-extension:", "safari-web-extension:"];
+const LOOPBACK_HOSTS: Set<string> = new Set<string>(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
 export type AuthSyncServerMode = "disabled" | "stopped" | "local" | "observer" | "conflict" | "vacant";
 
@@ -254,12 +256,12 @@ class AuthSyncServer implements vscode.Disposable {
         const server: http.Server = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => {
             this.handleRequest(req, res).catch((error: Error) => {
                 if (isAuthSyncRequestError(error)) {
-                    this.sendJson(res, error.statusCode, { ok: false, error: error.message });
+                    this.sendJson(res, error.statusCode, { ok: false, error: error.message }, true, req);
                     return;
                 }
 
                 leetCodeChannel.appendLine(`[auth-sync] ${String(error)}`);
-                this.sendJson(res, 500, { ok: false, error: "Internal server error." });
+                this.sendJson(res, 500, { ok: false, error: "Internal server error." }, true, req);
             });
         });
 
@@ -364,18 +366,28 @@ class AuthSyncServer implements vscode.Disposable {
             return;
         }
 
+        // Reject state-changing requests coming from a website. The browser always attaches an
+        // Origin header to cross-origin POST/OPTIONS, so this blocks login-CSRF attempts where a
+        // malicious page tries to push an attacker-controlled cookie into this window. The companion
+        // browser extension reaches the listener through its `http://127.0.0.1/*` host permission and
+        // is identified by an extension-scheme origin (or none), so it is unaffected.
+        if ((req.method === "POST" || req.method === "OPTIONS") && this.isForbiddenCrossSiteOrigin(req)) {
+            this.sendJson(res, 403, { ok: false, error: "Cross-site requests are not allowed." }, false);
+            return;
+        }
+
         if (req.method === "POST" && url.pathname === RELEASE_PATH) {
             this.handleRelease(req, res);
             return;
         }
 
         if (req.method === "OPTIONS") {
-            this.handleOptions(res);
+            this.handleOptions(req, res);
             return;
         }
 
         if (req.method !== "POST" || url.pathname !== "/auth/update") {
-            this.sendJson(res, 404, { ok: false, error: "Not found." });
+            this.sendJson(res, 404, { ok: false, error: "Not found." }, true, req);
             return;
         }
 
@@ -386,7 +398,7 @@ class AuthSyncServer implements vscode.Disposable {
             const headerValue: string | string[] | undefined = req.headers[SECRET_HEADER];
             const providedSecret: string | undefined = Array.isArray(headerValue) ? headerValue[0] : headerValue;
             if (providedSecret !== secret) {
-                this.sendJson(res, 401, { ok: false, error: "Invalid auth sync secret." });
+                this.sendJson(res, 401, { ok: false, error: "Invalid auth sync secret." }, true, req);
                 return;
             }
         }
@@ -397,7 +409,7 @@ class AuthSyncServer implements vscode.Disposable {
         const browserRequestHeaders: IBrowserRequestHeaders | undefined = this.getBrowserRequestHeaders(body);
 
         if (!this.hasLeetCodeSessionCookie(cookie)) {
-            this.sendJson(res, 400, { ok: false, error: "Request did not include a valid LeetCode login session cookie." });
+            this.sendJson(res, 400, { ok: false, error: "Request did not include a valid LeetCode login session cookie." }, true, req);
             return;
         }
 
@@ -415,7 +427,7 @@ class AuthSyncServer implements vscode.Disposable {
         }
         await globalState.setAuthSyncLastSyncedAt(Date.now());
 
-        this.sendJson(res, 200, { ok: true, message: "LeetCode cookie synced." });
+        this.sendJson(res, 200, { ok: true, message: "LeetCode cookie synced." }, true, req);
     }
 
     private handleHealth(res: http.ServerResponse): void {
@@ -442,9 +454,9 @@ class AuthSyncServer implements vscode.Disposable {
         setTimeout(() => void this.releaseToObserver(), 50);
     }
 
-    private handleOptions(res: http.ServerResponse): void {
+    private handleOptions(req: http.IncomingMessage, res: http.ServerResponse): void {
         res.statusCode = 204;
-        this.setCorsHeaders(res);
+        this.setCorsHeaders(res, req);
         res.end();
     }
 
@@ -588,23 +600,65 @@ class AuthSyncServer implements vscode.Disposable {
         leetCodeChannel.appendLine(`[auth-sync] Received cookie update. Cookie names: ${names}. Reason: ${safeReason}.`);
     }
 
-    private sendJson(res: http.ServerResponse, status: number, payload: object, allowCors: boolean = true): void {
+    private sendJson(res: http.ServerResponse, status: number, payload: object, allowCors: boolean = true, req?: http.IncomingMessage): void {
         if (res.headersSent) {
             return;
         }
 
         res.statusCode = status;
         if (allowCors) {
-            this.setCorsHeaders(res);
+            this.setCorsHeaders(res, req);
         }
         res.setHeader("Content-Type", "application/json");
         res.end(JSON.stringify(payload));
     }
 
-    private setCorsHeaders(res: http.ServerResponse): void {
-        res.setHeader("Access-Control-Allow-Origin", "*");
+    private setCorsHeaders(res: http.ServerResponse, req?: http.IncomingMessage): void {
+        // Only reflect the origin for the companion browser extension (or a loopback caller). A
+        // missing origin needs no CORS headers, and a website origin is never echoed, so pages
+        // cannot read auth-sync responses cross-origin.
+        const origin: string | undefined = req ? this.getRequestOrigin(req) : undefined;
+        if (origin && this.isExtensionOrLoopbackOrigin(origin)) {
+            res.setHeader("Access-Control-Allow-Origin", origin);
+            res.setHeader("Vary", "Origin");
+        }
         res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
         res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-LeetCode-AuthSync-Secret");
+    }
+
+    private getRequestOrigin(req: http.IncomingMessage): string | undefined {
+        const headerValue: string | string[] | undefined = req.headers.origin;
+        const origin: string | undefined = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+        return origin || undefined;
+    }
+
+    private isExtensionOrLoopbackOrigin(origin: string): boolean {
+        if (origin === "null") {
+            return false;
+        }
+
+        let parsed: URL;
+        try {
+            parsed = new URL(origin);
+        } catch (error) {
+            return false;
+        }
+
+        if (EXTENSION_ORIGIN_SCHEMES.indexOf(parsed.protocol) >= 0) {
+            return true;
+        }
+
+        return (parsed.protocol === "http:" || parsed.protocol === "https:") && LOOPBACK_HOSTS.has(parsed.hostname);
+    }
+
+    private isForbiddenCrossSiteOrigin(req: http.IncomingMessage): boolean {
+        const origin: string | undefined = this.getRequestOrigin(req);
+        if (!origin) {
+            // No Origin header: native clients (curl) and the extension's background service worker.
+            return false;
+        }
+
+        return !this.isExtensionOrLoopbackOrigin(origin);
     }
 
     private startHeartbeatTimer(): void {
