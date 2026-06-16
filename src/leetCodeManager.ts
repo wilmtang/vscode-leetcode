@@ -1,17 +1,13 @@
 // Copyright (c) jdneo. All rights reserved.
 // Licensed under the MIT license.
 
-import * as cp from "child_process";
 import { EventEmitter } from "events";
 import * as vscode from "vscode";
 import { leetCodeChannel } from "./leetCodeChannel";
-import { leetCodeExecutor } from "./leetCodeExecutor";
-import { Endpoint, IQuickItemEx, loginArgsMapping, urls, urlsCn, UserStatus } from "./shared";
-import { createEnvOption } from "./utils/cpUtils";
+import { Endpoint, IQuickItemEx, urls, urlsCn, UserStatus } from "./shared";
 import { DialogType, openUrl, promptForOpenOutputChannel } from "./utils/uiUtils";
-import * as wsl from "./utils/wslUtils";
 import { getLeetCodeEndpoint } from "./commands/plugin";
-import { globalState, IBrowserRequestHeaders } from "./globalState";
+import { globalState, IBrowserRequestHeaders, UserDataType } from "./globalState";
 import { fetchUserStatus } from "./request/leetcode-api";
 import { parseQuery } from "./utils/toolUtils";
 
@@ -28,8 +24,6 @@ const showAuthSyncStatusAction: string = "Show Auth Sync Status";
 class LeetCodeManager extends EventEmitter {
     private currentUser: string | undefined;
     private userStatus: UserStatus;
-    private readonly successRegex: RegExp = /(?:.*)Successfully .*login as (.*)/i;
-    private readonly failRegex: RegExp = /.*\[ERROR\].*/i;
     private readonly authSyncSignInTimeoutMs: number = 2 * 60 * 1000;
 
     constructor() {
@@ -39,18 +33,59 @@ class LeetCodeManager extends EventEmitter {
         this.handleUriSignIn = this.handleUriSignIn.bind(this);
     }
 
+    // Determines sign-in state without shelling out to the CLI, so activation no
+    // longer depends on Node. A cached identity is trusted immediately for an
+    // instant, offline-tolerant cold start, then verified directly in the
+    // background; with no cache we verify synchronously.
     public async getLoginStatus(): Promise<void> {
-        try {
-            const result: string = await leetCodeExecutor.getUserInfo();
-            this.currentUser = this.tryParseUserName(result);
+        const cookie: string | undefined = globalState.getCookie();
+        const cached: UserDataType | undefined = globalState.getUserStatus();
+        if (cookie && cached && cached.isSignedIn && cached.username) {
+            this.currentUser = cached.username;
             this.userStatus = UserStatus.SignedIn;
-        } catch (error) {
-            this.currentUser = undefined;
-            this.userStatus = UserStatus.SignedOut;
-            globalState.removeAll();
-        } finally {
             this.emit("statusChanged");
+            void this.refreshUserStatus();
+            return;
         }
+
+        await this.refreshUserStatus();
+    }
+
+    // Verifies the synced cookie against the direct API. A HTTP-200 response with
+    // isSignedIn=false means the cookie genuinely expired (clear state); a thrown
+    // error is treated as transient/offline and keeps any cached identity so a
+    // flaky network does not sign the user out.
+    private async refreshUserStatus(): Promise<void> {
+        try {
+            if (!globalState.getCookie()) {
+                this.applySignedOut();
+                return;
+            }
+
+            const data: UserDataType = await fetchUserStatus();
+            if (data.isSignedIn && data.username) {
+                globalState.setUserStatus(data);
+                this.currentUser = data.username;
+                this.userStatus = UserStatus.SignedIn;
+                this.emit("statusChanged");
+            } else {
+                this.applySignedOut();
+            }
+        } catch (error) {
+            leetCodeChannel.appendLine(`[auth] Could not verify LeetCode session: ${error}`);
+            if (!this.currentUser) {
+                this.applySignedOut();
+            } else {
+                this.emit("statusChanged");
+            }
+        }
+    }
+
+    private applySignedOut(): void {
+        this.currentUser = undefined;
+        this.userStatus = UserStatus.SignedOut;
+        globalState.removeAll();
+        this.emit("statusChanged");
     }
 
     public async updateSessionFromCookie(cookie: string, browserUserAgent?: string, browserRequestHeaders?: IBrowserRequestHeaders): Promise<void> {
@@ -61,7 +96,6 @@ class LeetCodeManager extends EventEmitter {
         }
 
         globalState.setUserStatus(data);
-        await this.setCookieToCli(cookie, data.username);
         vscode.window.showInformationMessage(`Successfully signed in as ${data.username}.`);
         this.currentUser = data.username;
         this.userStatus = UserStatus.SignedIn;
@@ -160,16 +194,13 @@ class LeetCodeManager extends EventEmitter {
     }
 
     public async signOut(): Promise<void> {
-        try {
-            await leetCodeExecutor.signOut();
-            vscode.window.showInformationMessage("Successfully signed out.");
-            this.currentUser = undefined;
-            this.userStatus = UserStatus.SignedOut;
-            globalState.removeAll();
-            this.emit("statusChanged");
-        } catch (error) {
-            // swallow the error when sign out.
-        }
+        // Sign-out is now purely local: clear the synced cookie/identity from
+        // globalState. There is no CLI session to tear down.
+        globalState.removeAll();
+        this.currentUser = undefined;
+        this.userStatus = UserStatus.SignedOut;
+        this.emit("statusChanged");
+        vscode.window.showInformationMessage("Successfully signed out.");
     }
 
     public getStatus(): UserStatus {
@@ -342,16 +373,6 @@ class LeetCodeManager extends EventEmitter {
         });
     }
 
-    private tryParseUserName(output: string): string {
-        const reg: RegExp = /^\s*.\s*(.+?)\s*https:\/\/leetcode/m;
-        const match: RegExpMatchArray | null = output.match(reg);
-        if (match && match.length === 2) {
-            return match[1].trim();
-        }
-
-        return "Unknown";
-    }
-
     public getAuthLoginUrl(): string {
         switch (getLeetCodeEndpoint()) {
             case Endpoint.LeetCodeCN:
@@ -360,42 +381,6 @@ class LeetCodeManager extends EventEmitter {
             default:
                 return urls.authLoginUrl;
         }
-    }
-
-    public async setCookieToCli(cookie: string, name: string): Promise<void> {
-        const leetCodeBinaryPath: string = await leetCodeExecutor.getLeetCodeBinaryPath();
-
-        return new Promise((resolve: (res: void) => void, reject: (e: Error) => void) => {
-            const childProc: cp.ChildProcess = wsl.useWsl()
-                ? cp.spawn("wsl", [leetCodeExecutor.node, leetCodeBinaryPath, "user", loginArgsMapping.get("Cookie") ?? ""], {
-                      shell: true,
-                  })
-                : cp.spawn(leetCodeExecutor.node, [leetCodeBinaryPath, "user", loginArgsMapping.get("Cookie") ?? ""], {
-                      shell: true,
-                      env: createEnvOption(),
-                  });
-
-            childProc.stdout?.on("data", async (data: string | Buffer) => {
-                data = data.toString();
-                leetCodeChannel.append(data);
-                const successMatch: RegExpMatchArray | null = data.match(this.successRegex);
-                if (successMatch && successMatch[1]) {
-                    childProc.stdin?.end();
-                    return resolve();
-                } else if (data.match(this.failRegex)) {
-                    childProc.stdin?.end();
-                    return reject(new Error("Faile to login"));
-                } else if (data.match(/login: /)) {
-                    childProc.stdin?.write(`${name}\n`);
-                } else if (data.match(/cookie: /)) {
-                    childProc.stdin?.write(`${cookie}\n`);
-                }
-            });
-
-            childProc.stderr?.on("data", (data: string | Buffer) => leetCodeChannel.append(data.toString()));
-
-            childProc.on("error", reject);
-        });
     }
 }
 

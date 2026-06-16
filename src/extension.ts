@@ -36,10 +36,9 @@ import { globalState } from "./globalState";
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     try {
-        if (!(await leetCodeExecutor.meetRequirements(context))) {
-            throw new Error("The environment doesn't meet requirements.");
-        }
-
+        // Activation no longer depends on Node or the bundled CLI: there is no
+        // meetRequirements() gate and no CLI endpoint toggle. The active endpoint
+        // is resolved purely from the `leetcode.endpoint` setting via getUrl().
         leetCodeManager.on("statusChanged", () => {
             leetCodeStatusBarController.updateStatusBar(leetCodeManager.getStatus(), leetCodeManager.getUser());
             leetCodeTreeDataProvider.refresh();
@@ -116,7 +115,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             authSyncServer
         );
 
-        await leetCodeExecutor.switchEndpoint(plugin.getLeetCodeEndpoint());
         await leetCodeManager.getLoginStatus();
         context.subscriptions.push(vscode.window.registerUriHandler({ handleUri: leetCodeManager.handleUriSignIn }));
         await startAuthSyncServer();
