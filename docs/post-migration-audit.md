@@ -12,7 +12,7 @@
 | 1 | Whole catalog re-fetched on every tree refresh (star / sort / startup) | 🔴 High | ✅ Fixed |
 | 2 | Favorites & solutions broken on `leetcode.cn` | 🟠 Medium | 📄 Documented — won't fix (PRs welcome) |
 | 3 | Unbounded favorites pagination loop | 🟠 Medium | ✅ Fixed |
-| 4 | Preview webview XSS hardening (`'unsafe-inline'` + regex sanitizer) | 🟡 Low | ⬜ Open |
+| 4 | Preview webview XSS hardening (`'unsafe-inline'` + regex sanitizer) | 🟡 Low | ✅ Fixed |
 | 5 | Inline `$…$` math false positives (currency) | 🟡 Low | ⬜ Open |
 | 6 | Redundant question-detail fetch when opening a problem | 🟡 Low | ⬜ Open |
 | 7 | No HTTP request timeout | ⚪ Minor | ⬜ Open |
@@ -91,7 +91,7 @@ forever. Low probability, but inconsistent and unsafe.
 hard `FAVORITE_LIST_MAX_PAGES` (50 pages → 5,000) backstop, so it can no longer
 spin even if the server reports `hasMore: true` without honoring `skip`.
 
-### 4 — Preview webview XSS hardening 🟡 *(Open)*
+### 4 — Preview webview XSS hardening 🟡 *(✅ Fixed)*
 
 **Symptom.** The problem-description preview sets
 `script-src vscode-resource: 'unsafe-inline'`
@@ -102,9 +102,12 @@ through, and `'unsafe-inline'` would let it run. Practical risk is low
 (descriptions are LeetCode-authored; the solution webview already drops
 `'unsafe-inline'`), but the combination is fragile.
 
-**Fix.** Give the preview's own inline script a per-render **nonce** and use
-`script-src vscode-resource: 'nonce-…'` instead of `'unsafe-inline'`, so injected
-scripts/handlers cannot run regardless of sanitizer gaps.
+**Fix (done).** The preview's own inline script now carries a per-render
+`crypto.randomBytes` **nonce**, and the CSP uses
+`script-src vscode-resource: 'nonce-…'` instead of `'unsafe-inline'`. Any script or
+event handler injected through the description HTML is now blocked by the CSP,
+independent of the (defense-in-depth) regex sanitizer. The `sanitizeHtml` pass is
+kept; the solution webview already had no `'unsafe-inline'`.
 
 ### 5 — Inline `$…$` math false positives 🟡 *(Open)*
 
@@ -171,3 +174,4 @@ fallback). No change needed — recorded for awareness.
 | 2026-06-16 | *(this commit)* | Documented the post-migration audit findings. |
 | 2026-06-16 | *(this branch)* | Fix #1: cache the catalog; star/sort soft-refresh; gate redundant status emits; de-dup overlapping fetches. |
 | 2026-06-16 | *(this branch)* | Fix #3: bound the favorites pagination loop by `totalLength` + a 50-page backstop. |
+| 2026-06-16 | *(this branch)* | Fix #4: nonce the preview's inline script; drop `script-src 'unsafe-inline'`. |

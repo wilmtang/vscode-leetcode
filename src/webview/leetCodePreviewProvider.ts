@@ -1,6 +1,7 @@
 // Copyright (c) jdneo. All rights reserved.
 // Licensed under the MIT license.
 
+import * as crypto from "crypto";
 import { commands, ViewColumn } from "vscode";
 import { getLeetCodeEndpoint } from "../commands/plugin";
 import { ILeetCodeQuestionDetail } from "../request/leetcode-api";
@@ -89,11 +90,16 @@ class LeetCodePreviewProvider extends LeetCodeWebview {
             `</details>`,
         ].join("\n");
         const links: string = markdownEngine.render(`[Submissions](${this.getSubmissionsLink(url)}) | [Solution](${this.getSolutionsLink(url)})`);
+        // Nonce the extension's own inline script so the CSP can drop
+        // 'unsafe-inline' for scripts — any script/handler injected through the
+        // untrusted description HTML then cannot execute, even if the sanitizer is
+        // bypassed.
+        const nonce: string = crypto.randomBytes(16).toString("base64");
         return `
             <!DOCTYPE html>
             <html>
             <head>
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; script-src vscode-resource: 'unsafe-inline'; style-src vscode-resource: 'unsafe-inline'; font-src vscode-resource:;"/>
+                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; script-src vscode-resource: 'nonce-${nonce}'; style-src vscode-resource: 'unsafe-inline'; font-src vscode-resource:;"/>
                 ${markdownEngine.getStyles()}
                 ${markdownEngine.getKatexStyle()}
                 ${!this.sideMode ? button.style : ""}
@@ -110,7 +116,7 @@ class LeetCodePreviewProvider extends LeetCodeWebview {
                 <hr />
                 ${links}
                 ${!this.sideMode ? button.element : ""}
-                <script>
+                <script nonce="${nonce}">
                     const vscode = acquireVsCodeApi();
                     ${!this.sideMode ? button.script : ""}
                 </script>
