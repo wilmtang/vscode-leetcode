@@ -188,26 +188,31 @@ fallback). No change needed — recorded for awareness.
 finishes (and "Pick One" is similarly slow). Submit/test work fine.
 
 **Cause.** `searchProblem`/`pickOne` ([show.ts](../src/commands/show.ts)) called
-`list.listProblems()`, which re-fetches the **entire ~3,900-problem catalog every
-time** — measured at **~20s** (39 pages fetched *sequentially*). `searchProblem`
-also passed that unresolved promise straight to `showQuickPick`, so the picker sat
-spinning the whole time (and would hang outright if the promise ever rejected
-inside `parseProblemsToPicks`).
+`list.listProblems()`, which re-fetches the **entire catalog every time**. The
+migration had replaced the CLI's *single bulk REST call* with a **paginated
+GraphQL** query (100/page → ~39 requests), so a full fetch went from ~1s (one
+request, plus the CLI's on-disk cache) to **~20s** — and `searchProblem` passed
+that unresolved promise straight to `showQuickPick`, so the picker just sat
+spinning (and would hang outright if the promise rejected inside
+`parseProblemsToPicks`).
 
 **Fix (done).**
+- **Restore the bulk endpoint.** `listProblems()` now hits the legacy
+  `GET /api/problems/all/` — the same source the CLI used — which returns the
+  *entire* catalog in **one ~1s request** (3,962 problems), carrying everything the
+  explorer needs (id, internal `question_id`, slug, title, difficulty, paid_only,
+  status, is_favor). Tags/companies stay vendored. The paginated GraphQL path is
+  kept as a **fallback** (and is now parallelized — first page → rest with
+  `PROBLEM_LIST_CONCURRENCY = 8` — for the `leetcode.cn`-translation case and any
+  REST failure).
 - **Use the cache.** `explorerNodeManager` gained `getProblems()` (cache-backed,
-  reusing any in-flight fetch); `searchProblem`/`pickOne` now resolve that array
-  *before* opening the quick pick. After the explorer's initial load the picker is
-  instant. `parseProblemsToPicks` is now a plain synchronous array mapper (no more
-  promise-in-quick-pick).
-- **Parallelize the fetch.** `listProblemsByCategory` fetches the first page to
-  learn the total, then fetches the rest with bounded concurrency
-  (`PROBLEM_LIST_CONCURRENCY = 8`, ordered via `mapWithConcurrency`). Even a cold
-  fetch dropped from **~20s → ~6s**; verified the result is still complete (3,880
-  problems, unique slugs, ascending-sorted, two-sum #1).
-- **E2E tests:** a live catalog-timing guard (`< 20s`) and a cache test asserting
-  `getProblems()` returns the full catalog and the repeat call is served from cache
-  (`< 500ms`).
+  reusing any in-flight fetch); `searchProblem`/`pickOne` resolve that array
+  *before* opening the quick pick, so it is instant once the explorer has loaded.
+  `parseProblemsToPicks` is now a plain synchronous array mapper.
+- **E2E tests:** a live catalog-timing guard (`< 20s`; actually ~1s now), a cache
+  test (`getProblems()` returns the full catalog, repeat call `< 500ms`), and
+  offline `mapRestProblem` unit tests. Verified complete: 3,962 problems, unique
+  slugs, ascending-sorted, two-sum #1, distinct internal ids preserved.
 
 ### 12 — Status-bar item click does nothing 🟡 *(✅ Fixed)*
 
@@ -238,3 +243,4 @@ search.
 | 2026-06-16 | *(this branch)* | Fix #9: warn when the chosen language has no code snippet (empty scaffold explained). |
 | 2026-06-16 | *(this branch)* | Finding #2 (CN): flagged broken `leetcode.cn` support in the README (favorites + solutions) and invited PRs. Documented, not fixed. |
 | 2026-06-16 | *(this branch)* | Fix #11/#12: Search/Pick use the cached catalog + parallel paging (~20s→~6s, instant when warm); status bar repointed to search. Added live e2e tests. |
+| 2026-06-16 | *(this branch)* | Fix #11 (root cause): catalog now uses the bulk `GET /api/problems/all/` (one ~1s request, like the CLI did) with the parallel GraphQL path as fallback. |

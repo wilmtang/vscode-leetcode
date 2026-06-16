@@ -1,4 +1,5 @@
 import { globalState, UserDataType } from "../globalState";
+import { leetCodeChannel } from "../leetCodeChannel";
 import { getUrl, ProblemState } from "../shared";
 import { createHeaders, DirectApiUnsupportedError, requestJson } from "./leetcode-http";
 
@@ -107,6 +108,28 @@ interface ITopicTag {
     slug?: string;
 }
 
+// Shape of the legacy bulk REST endpoint (GET /api/problems/all/). It returns the
+// entire catalog in one response — no tags/companies (those are vendored), but
+// everything the explorer needs.
+interface IRestProblemStat {
+    stat?: {
+        question_id?: number;
+        frontend_question_id?: number | string;
+        question__title?: string;
+        question__title_slug?: string;
+        total_acs?: number;
+        total_submitted?: number;
+    };
+    difficulty?: { level?: number };
+    paid_only?: boolean;
+    status?: string | null;
+    is_favor?: boolean;
+}
+
+interface IRestProblemsResponse {
+    stat_status_pairs?: IRestProblemStat[];
+}
+
 interface IQuestionDetailData {
     question?: IQuestionDetailItem;
 }
@@ -136,6 +159,42 @@ interface IUserStatusData {
 
 export async function listProblems(options: IListProblemsOptions = {}): Promise<ILeetCodeProblem[]> {
     const cookie: string = getRequiredCookie();
+
+    // Fast path: the legacy bulk REST endpoint (the same one the CLI used) returns
+    // the *entire* catalog in a single ~1s request. It carries no translated
+    // titles, so only the `leetcode.cn` + translation case needs the paginated
+    // GraphQL path; on any REST failure we also fall back to GraphQL.
+    if (!(isCnEndpoint() && options.needTranslation !== false)) {
+        try {
+            return await listProblemsViaRest(cookie, options);
+        } catch (error) {
+            leetCodeChannel.appendLine(`[problems] Bulk REST list unavailable, falling back to GraphQL: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    return listProblemsViaGraphql(cookie, options);
+}
+
+async function listProblemsViaRest(cookie: string, options: IListProblemsOptions): Promise<ILeetCodeProblem[]> {
+    const response: IRestProblemsResponse = await requestJson<IRestProblemsResponse>({
+        method: "GET",
+        url: `${getUrl("base")}/api/problems/all/`,
+        headers: createHeaders(cookie, `${getUrl("base")}/problemset/all/`),
+    }, { label: "problem list" });
+
+    const problemsBySlug: { [titleSlug: string]: ILeetCodeProblem } = {};
+    for (const pair of response.stat_status_pairs || []) {
+        const problem: ILeetCodeProblem = mapRestProblem(pair);
+        if (!hasProblemIdentity(problem) || (!options.showLocked && problem.locked)) {
+            continue;
+        }
+        problemsBySlug[problem.titleSlug] = problem;
+    }
+
+    return sortByFrontendId(problemsBySlug);
+}
+
+async function listProblemsViaGraphql(cookie: string, options: IListProblemsOptions): Promise<ILeetCodeProblem[]> {
     const problemsBySlug: { [titleSlug: string]: ILeetCodeProblem } = {};
 
     for (const categorySlug of PROBLEM_CATEGORIES) {
@@ -148,6 +207,10 @@ export async function listProblems(options: IListProblemsOptions = {}): Promise<
         }
     }
 
+    return sortByFrontendId(problemsBySlug);
+}
+
+function sortByFrontendId(problemsBySlug: { [titleSlug: string]: ILeetCodeProblem }): ILeetCodeProblem[] {
     return Object.keys(problemsBySlug)
         .map((titleSlug: string) => problemsBySlug[titleSlug])
         .sort((left: ILeetCodeProblem, right: ILeetCodeProblem) => numericId(left.questionFrontendId) - numericId(right.questionFrontendId));
@@ -556,6 +619,38 @@ function normalizeLanguageTags(langSlug?: string): string[] {
     }
 
     return [langSlug];
+}
+
+export function mapRestProblem(raw: IRestProblemStat): ILeetCodeProblem {
+    const stat = raw.stat || {};
+    const totalAcs: number = stat.total_acs || 0;
+    const totalSubmitted: number = stat.total_submitted || 0;
+    return {
+        acRate: totalSubmitted > 0 ? totalAcs * 100 / totalSubmitted : 0,
+        companies: [],
+        difficulty: mapRestDifficulty(raw.difficulty && raw.difficulty.level),
+        isFavorite: !!raw.is_favor,
+        locked: !!raw.paid_only,
+        questionFrontendId: stat.frontend_question_id !== undefined && stat.frontend_question_id !== null ? String(stat.frontend_question_id) : "",
+        questionId: stat.question_id !== undefined ? String(stat.question_id) : undefined,
+        state: normalizeProblemState(raw.status),
+        tags: [],
+        title: stat.question__title || "",
+        titleSlug: stat.question__title_slug || "",
+    };
+}
+
+function mapRestDifficulty(level: number | undefined): "Easy" | "Medium" | "Hard" | "Unknown" {
+    switch (level) {
+        case 1:
+            return "Easy";
+        case 2:
+            return "Medium";
+        case 3:
+            return "Hard";
+        default:
+            return "Unknown";
+    }
 }
 
 export function mapGlobalProblem(raw: IGlobalQuestionListItem): ILeetCodeProblem {

@@ -4,6 +4,7 @@ import {
     mapCnProblem,
     mapGlobalProblem,
     mapQuestionDetail,
+    mapRestProblem,
 } from "../../request/leetcode-api";
 import { ProblemState } from "../../shared";
 import {
@@ -12,6 +13,8 @@ import {
     globalQuestionItem,
     globalQuestionItemLockedUnknown,
     questionDetailItem,
+    restProblemItem,
+    restProblemItemLockedUnknown,
 } from "../fixtures/leetcode-responses";
 
 describe("leetcode-api mappers", () => {
@@ -38,6 +41,33 @@ describe("leetcode-api mappers", () => {
             assert.strictEqual(problem.isFavorite, true);
             assert.strictEqual(problem.state, ProblemState.Unknown);
             assert.deepStrictEqual(problem.tags, []);
+        });
+    });
+
+    describe("mapRestProblem", () => {
+        it("maps the bulk REST shape, keeping the distinct internal id and computing acRate", () => {
+            const problem = mapRestProblem(restProblemItem);
+            assert.strictEqual(problem.questionFrontendId, "773");
+            assert.strictEqual(problem.questionId, "787");
+            assert.strictEqual(problem.titleSlug, "sliding-puzzle");
+            assert.strictEqual(problem.title, "Sliding Puzzle");
+            assert.strictEqual(problem.difficulty, "Hard");
+            assert.strictEqual(problem.acRate, 50);
+            assert.strictEqual(problem.locked, false);
+            assert.strictEqual(problem.isFavorite, true);
+            assert.strictEqual(problem.state, ProblemState.AC);
+            assert.deepStrictEqual(problem.tags, []);
+            assert.deepStrictEqual(problem.companies, []);
+        });
+
+        it("marks paid-only as locked, normalizes unknown difficulty, avoids divide-by-zero", () => {
+            const problem = mapRestProblem(restProblemItemLockedUnknown);
+            assert.strictEqual(problem.locked, true);
+            assert.strictEqual(problem.difficulty, "Unknown");
+            assert.strictEqual(problem.acRate, 0);
+            assert.strictEqual(problem.state, ProblemState.Unknown);
+            assert.strictEqual(problem.questionFrontendId, "5");
+            assert.strictEqual(problem.questionId, undefined);
         });
     });
 

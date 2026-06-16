@@ -33,6 +33,35 @@ export const globalQuestionItemLockedUnknown = {
     topicTags: [],
 };
 
+// Shape of the bulk REST endpoint GET /api/problems/all/ (stat_status_pairs[i]).
+export const restProblemItem = {
+    stat: {
+        question_id: 787,
+        frontend_question_id: 773,
+        question__title: "Sliding Puzzle",
+        question__title_slug: "sliding-puzzle",
+        total_acs: 100,
+        total_submitted: 200,
+    },
+    difficulty: { level: 3 },
+    paid_only: false,
+    status: "ac",
+    is_favor: true,
+};
+
+export const restProblemItemLockedUnknown = {
+    stat: {
+        frontend_question_id: 5,
+        question__title: "Locked",
+        question__title_slug: "locked",
+        total_acs: 0,
+        total_submitted: 0,
+    },
+    difficulty: { level: 9 },
+    paid_only: true,
+    status: null,
+};
+
 export const cnQuestionItem = {
     acRate: 0.5,
     difficulty: "Medium",
