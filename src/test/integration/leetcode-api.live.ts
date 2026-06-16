@@ -111,15 +111,6 @@ describe("leetcode-api (live)", () => {
         });
     });
 
-    describe("sessions", () => {
-        // The REST `/session/` endpoint LeetCode used to expose is gone: POST/PUT
-        // now return HTTP 405 and GET serves the HTML page, not JSON. Restoring
-        // session management means reimplementing listSessions/activate/create/
-        // delete on top of GraphQL. Tracked separately; skip until then so the
-        // suite reflects a known gap instead of a flaky/dead assertion.
-        it.skip("listSessions — REST /session/ endpoint deprecated (HTTP 405), needs GraphQL reimplementation");
-    });
-
     describe("judge submit (opt-in: sets LEETCODE_LIVE_SUBMIT=1)", () => {
         // A real submit records an entry on the user's LeetCode account, so it is
         // off by default. Enable it explicitly to exercise the full CSRF-protected

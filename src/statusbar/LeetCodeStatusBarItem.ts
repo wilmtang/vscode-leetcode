@@ -8,8 +8,9 @@ export class LeetCodeStatusBarItem implements vscode.Disposable {
     private readonly statusBarItem: vscode.StatusBarItem;
 
     constructor() {
+        // The status bar item used to open session management; LeetCode removed
+        // the session feature, so the item is now display-only (signed-in user).
         this.statusBarItem = vscode.window.createStatusBarItem();
-        this.statusBarItem.command = "leetcode.manageSessions";
     }
 
     public updateStatusBar(status: UserStatus, user?: string): void {

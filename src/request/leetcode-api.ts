@@ -48,18 +48,6 @@ export interface ILeetCodeQuestionDetail {
     topicTags: string[];
 }
 
-export interface ILeetCodeSession {
-    acQuestions: number;
-    acSubmits: number;
-    active: boolean;
-    id: string;
-    name: string;
-    questionAcceptanceRate: number;
-    submissionAcceptanceRate: number;
-    submittedQuestions: number;
-    totalSubmits: number;
-}
-
 interface IGraphqlError {
     message?: string;
 }
@@ -141,20 +129,6 @@ interface IQuestionDetailItem {
 
 interface IUserStatusData {
     userStatus?: UserDataType;
-}
-
-interface ISessionResponse {
-    sessions?: ISessionItem[];
-}
-
-interface ISessionItem {
-    ac_questions?: number;
-    id?: number | string;
-    is_active?: boolean;
-    name?: string;
-    submitted_questions?: number;
-    total_acs?: number;
-    total_submitted?: number;
 }
 
 export async function listProblems(options: IListProblemsOptions = {}): Promise<ILeetCodeProblem[]> {
@@ -263,30 +237,6 @@ export async function fetchUserStatus(): Promise<UserDataType> {
     }
 
     return userStatus;
-}
-
-export async function listSessions(): Promise<ILeetCodeSession[]> {
-    const cookie: string = getRequiredCookie();
-    const response: ISessionResponse = await requestJson<ISessionResponse>({
-        method: "POST",
-        url: `${getUrl("base")}/session/`,
-        headers: createHeaders(cookie, `${getUrl("base")}/session/`),
-        data: {},
-    }, { label: "list sessions" });
-
-    return (response.sessions || []).map(mapSession);
-}
-
-export async function activateSession(sessionId: string): Promise<ILeetCodeSession[]> {
-    return updateSession("PUT", { func: "activate", target: sessionId }, "activate session");
-}
-
-export async function createSession(name: string): Promise<ILeetCodeSession[]> {
-    return updateSession("PUT", { func: "create", name }, "create session");
-}
-
-export async function deleteSession(sessionId: string): Promise<ILeetCodeSession[]> {
-    return updateSession("DELETE", { target: sessionId }, "delete session");
 }
 
 export function mapGlobalProblem(raw: IGlobalQuestionListItem): ILeetCodeProblem {
@@ -446,36 +396,6 @@ async function fetchCnProblemPage(categorySlug: string, skip: number, limit: num
         hasMore: list ? !!list.hasMore : questions.length >= limit,
         problems: questions.map((question: ICnQuestionListItem) => mapCnProblem(question, needTranslation)).filter(hasProblemIdentity),
         total: list && list.total,
-    };
-}
-
-async function updateSession(method: "PUT" | "DELETE", data: object, label: string): Promise<ILeetCodeSession[]> {
-    const cookie: string = getRequiredCookie();
-    const response: ISessionResponse = await requestJson<ISessionResponse>({
-        method,
-        url: `${getUrl("base")}/session/`,
-        headers: createHeaders(cookie, `${getUrl("base")}/session/`),
-        data,
-    }, { label });
-
-    return (response.sessions || []).map(mapSession);
-}
-
-export function mapSession(raw: ISessionItem): ILeetCodeSession {
-    const acQuestions: number = raw.ac_questions || 0;
-    const submittedQuestions: number = raw.submitted_questions || 0;
-    const acSubmits: number = raw.total_acs || 0;
-    const totalSubmits: number = raw.total_submitted || 0;
-    return {
-        acQuestions,
-        acSubmits,
-        active: !!raw.is_active,
-        id: raw.id === undefined ? "" : String(raw.id),
-        name: raw.name || "Anonymous Session",
-        questionAcceptanceRate: submittedQuestions > 0 ? acQuestions * 100 / submittedQuestions : 0,
-        submissionAcceptanceRate: totalSubmits > 0 ? acSubmits * 100 / totalSubmits : 0,
-        submittedQuestions,
-        totalSubmits,
     };
 }
 

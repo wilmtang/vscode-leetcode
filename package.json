@@ -33,7 +33,6 @@
         "onCommand:leetcode.authSync.status",
         "onCommand:leetcode.authSync.restart",
         "onCommand:leetcode.authSync.forceStart",
-        "onCommand:leetcode.manageSessions",
         "onCommand:leetcode.refreshExplorer",
         "onCommand:leetcode.pickOne",
         "onCommand:leetcode.showProblem",
@@ -68,11 +67,6 @@
             {
                 "command": "leetcode.signout",
                 "title": "Sign Out",
-                "category": "LeetCode"
-            },
-            {
-                "command": "leetcode.manageSessions",
-                "title": "Manage Sessions",
                 "category": "LeetCode"
             },
             {

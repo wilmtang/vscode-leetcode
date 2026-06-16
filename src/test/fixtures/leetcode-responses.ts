@@ -84,21 +84,3 @@ export const questionDetailItem = {
     ],
     translatedContent: "<p>中文题面</p>",
 };
-
-export const sessionItem = {
-    ac_questions: 10,
-    id: 123,
-    is_active: true,
-    name: "Primary",
-    submitted_questions: 20,
-    total_acs: 30,
-    total_submitted: 60,
-};
-
-export const sessionItemAnonymousEmpty = {
-    ac_questions: 0,
-    is_active: false,
-    submitted_questions: 0,
-    total_acs: 0,
-    total_submitted: 0,
-};

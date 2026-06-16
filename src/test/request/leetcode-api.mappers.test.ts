@@ -4,7 +4,6 @@ import {
     mapCnProblem,
     mapGlobalProblem,
     mapQuestionDetail,
-    mapSession,
 } from "../../request/leetcode-api";
 import { ProblemState } from "../../shared";
 import {
@@ -13,8 +12,6 @@ import {
     globalQuestionItem,
     globalQuestionItemLockedUnknown,
     questionDetailItem,
-    sessionItem,
-    sessionItemAnonymousEmpty,
 } from "../fixtures/leetcode-responses";
 
 describe("leetcode-api mappers", () => {
@@ -85,28 +82,6 @@ describe("leetcode-api mappers", () => {
             const detail = mapQuestionDetail(questionDetailItem, false);
             assert.strictEqual(detail.content, "<p>English content</p>");
             assert.deepStrictEqual(detail.topicTags, ["array"]);
-        });
-    });
-
-    describe("mapSession", () => {
-        it("computes acceptance rates and coerces the id to a string", () => {
-            const session = mapSession(sessionItem);
-            assert.strictEqual(session.id, "123");
-            assert.strictEqual(session.name, "Primary");
-            assert.strictEqual(session.active, true);
-            assert.strictEqual(session.acQuestions, 10);
-            assert.strictEqual(session.submittedQuestions, 20);
-            assert.strictEqual(session.questionAcceptanceRate, 50);
-            assert.strictEqual(session.submissionAcceptanceRate, 50);
-        });
-
-        it("defaults id/name and avoids division by zero", () => {
-            const session = mapSession(sessionItemAnonymousEmpty);
-            assert.strictEqual(session.id, "");
-            assert.strictEqual(session.name, "Anonymous Session");
-            assert.strictEqual(session.active, false);
-            assert.strictEqual(session.questionAcceptanceRate, 0);
-            assert.strictEqual(session.submissionAcceptanceRate, 0);
         });
     });
 

@@ -6,7 +6,6 @@ import { codeLensController } from "./codelens/CodeLensController";
 import * as cache from "./commands/cache";
 import { switchDefaultLanguage } from "./commands/language";
 import * as plugin from "./commands/plugin";
-import * as session from "./commands/session";
 import * as show from "./commands/show";
 import * as star from "./commands/star";
 import * as submit from "./commands/submit";
@@ -63,7 +62,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             vscode.commands.registerCommand("leetcode.toggleLeetCodeCn", () => plugin.switchEndpoint()),
             vscode.commands.registerCommand("leetcode.signin", () => leetCodeManager.signIn()),
             vscode.commands.registerCommand("leetcode.signout", () => leetCodeManager.signOut()),
-            vscode.commands.registerCommand("leetcode.manageSessions", () => session.manageSessions()),
             vscode.commands.registerCommand("leetcode.previewProblem", (node: LeetCodeNode) => {
                 TrackData.report({
                     event_key: "vscode_open_problem",
