@@ -2,7 +2,17 @@ import * as assert from "assert";
 import * as fse from "fs-extra";
 import * as os from "os";
 import * as path from "path";
-import { fetchUserStatus, getQuestionDetail, ILeetCodeProblem, ILeetCodeQuestionDetail, listProblems } from "../../request/leetcode-api";
+import {
+    addFavoriteQuestion,
+    fetchUserStatus,
+    getDefaultFavoriteSlug,
+    getFavoriteProblemSlugs,
+    getQuestionDetail,
+    ILeetCodeProblem,
+    ILeetCodeQuestionDetail,
+    listProblems,
+    removeFavoriteQuestion,
+} from "../../request/leetcode-api";
 import { getQuestionDetail as getJudgeMetadata, IQuestionDetail } from "../../request/leetcode-http";
 import { submitSolutionWithSyncedCookie } from "../../request/submit-solution";
 import { applyAuthFixture, getAuthFixturePath, IAuthFixture, loadAuthFixture } from "./auth-fixture";
@@ -108,6 +118,40 @@ describe("leetcode-api (live)", () => {
 
         it("both detail paths agree on the internal questionId", () => {
             assert.strictEqual(detail.questionId, judgeMeta.questionId, "full and judge-metadata questionId disagree");
+        });
+    });
+
+    describe("favorites (opt-in: sets LEETCODE_LIVE_FAVORITE=1)", () => {
+        // Reversible, but it still mutates the account's default Favorite list, so
+        // it is off by default. The legacy addQuestionToFavorite mutation is now a
+        // no-op shim and the problemset `isFavor` flag no longer tracks this list;
+        // this exercises the working V2 path the extension depends on.
+        if (process.env.LEETCODE_LIVE_FAVORITE !== "1") {
+            it.skip("set LEETCODE_LIVE_FAVORITE=1 to add/remove two-sum from the default Favorite list");
+            return;
+        }
+
+        it("resolves the default Favorite list slug", async () => {
+            const slug = await getDefaultFavoriteSlug();
+            assert.ok(slug && slug.length > 0, "expected a default Favorite list — is it named 'Favorite'?");
+        });
+
+        it("adds then removes two-sum, round-tripping to the original state", async function (): Promise<void> {
+            this.timeout(30 * 1000);
+            const slug = "two-sum";
+            const wasFavorite = (await getFavoriteProblemSlugs()).has(slug);
+
+            if (wasFavorite) {
+                await removeFavoriteQuestion(slug);
+                assert.ok(!(await getFavoriteProblemSlugs()).has(slug), "remove should drop two-sum");
+                await addFavoriteQuestion(slug);
+                assert.ok((await getFavoriteProblemSlugs()).has(slug), "add should restore two-sum");
+            } else {
+                await addFavoriteQuestion(slug);
+                assert.ok((await getFavoriteProblemSlugs()).has(slug), "add should include two-sum");
+                await removeFavoriteQuestion(slug);
+                assert.ok(!(await getFavoriteProblemSlugs()).has(slug), "remove should drop two-sum");
+            }
         });
     });
 

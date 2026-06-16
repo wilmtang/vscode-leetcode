@@ -3,7 +3,7 @@
 
 import { COMPANIES, TAGS } from "../data/companiesTags";
 import { leetCodeManager } from "../leetCodeManager";
-import { formatAcceptanceRate, ILeetCodeProblem, listProblems as listProblemsViaApi } from "../request/leetcode-api";
+import { formatAcceptanceRate, getFavoriteProblemSlugs, ILeetCodeProblem, listProblems as listProblemsViaApi } from "../request/leetcode-api";
 import { IProblem, UserStatus } from "../shared";
 import * as settingUtils from "../utils/settingUtils";
 import { DialogType, promptForOpenOutputChannel } from "../utils/uiUtils";
@@ -20,23 +20,37 @@ export async function listProblems(): Promise<IProblem[]> {
             showLocked: true,
         });
 
+        // The problemset `isFavor` flag no longer tracks the default "Favorite"
+        // list after LeetCode's favorites migration, so membership is read from
+        // the list itself. Failure here is non-fatal — fall back to `isFavor`.
+        const favoriteSlugs: Set<string> | undefined = await safeGetFavoriteSlugs();
+
         // listProblemsViaApi already returns the catalog sorted ascending by
         // frontend id, so unlike the old CLI text path there is nothing to reverse.
-        return apiProblems.map(toExtensionProblem);
+        return apiProblems.map((problem: ILeetCodeProblem) => toExtensionProblem(problem, favoriteSlugs));
     } catch (error) {
         await promptForOpenOutputChannel("Failed to list problems. Please open the output channel for details.", DialogType.error);
         return [];
     }
 }
 
-function toExtensionProblem(problem: ILeetCodeProblem): IProblem {
+async function safeGetFavoriteSlugs(): Promise<Set<string> | undefined> {
+    try {
+        return await getFavoriteProblemSlugs();
+    } catch (error) {
+        return undefined;
+    }
+}
+
+function toExtensionProblem(problem: ILeetCodeProblem, favoriteSlugs: Set<string> | undefined): IProblem {
     const id: string = problem.questionFrontendId;
+    const isFavorite: boolean = favoriteSlugs ? favoriteSlugs.has(problem.titleSlug) : problem.isFavorite;
     return {
         id,
         questionFrontendId: id,
         questionId: problem.questionId,
         titleSlug: problem.titleSlug,
-        isFavorite: problem.isFavorite,
+        isFavorite,
         locked: problem.locked,
         state: problem.state,
         name: problem.title,

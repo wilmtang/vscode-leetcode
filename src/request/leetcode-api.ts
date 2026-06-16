@@ -239,6 +239,159 @@ export async function fetchUserStatus(): Promise<UserDataType> {
     return userStatus;
 }
 
+// ---------------------------------------------------------------------------
+// Favorites
+//
+// LeetCode's favorites were migrated to "My Lists": the legacy
+// addQuestionToFavorite mutation is now a no-op shim, and the problemset
+// `isFavor` flag no longer tracks the default star list. The working path,
+// verified live, is the *V2* mutations (favoriteSlug + questionSlug), and the
+// Favorite explorer tree is driven by reading the default list's contents
+// directly rather than trusting `isFavor`.
+// ---------------------------------------------------------------------------
+
+const DEFAULT_FAVORITE_NAME: string = "Favorite";
+
+interface IFavoritesListsData {
+    favoritesLists?: {
+        allFavorites?: Array<{ idHash?: string; name?: string }>;
+    };
+}
+
+interface IFavoriteQuestionListData {
+    favoriteQuestionList?: {
+        hasMore?: boolean;
+        totalLength?: number;
+        questions?: Array<{ titleSlug?: string }>;
+    };
+}
+
+interface IFavoriteMutationData {
+    [operationName: string]: { ok?: boolean; error?: string | null } | undefined;
+}
+
+// Resolve the slug (idHash) of the user's default "Favorite" star list — the
+// same list the CLI's `star` command targeted (matched by the exact name).
+export async function getDefaultFavoriteSlug(): Promise<string | undefined> {
+    const cookie: string = getRequiredCookie();
+    const response: IGraphqlResponse<IFavoritesListsData> = await requestJson<IGraphqlResponse<IFavoritesListsData>>({
+        method: "POST",
+        url: getUrl("graphql"),
+        headers: createHeaders(cookie, `${getUrl("base")}/`),
+        data: {
+            query: [
+                "query favoritesList {",
+                "  favoritesLists {",
+                "    allFavorites {",
+                "      idHash",
+                "      name",
+                "    }",
+                "  }",
+                "}",
+            ].join("\n"),
+            variables: {},
+            operationName: "favoritesList",
+        },
+    }, { label: "favorites lists" });
+
+    assertNoGraphqlErrors(response, "favorites lists");
+    const all: Array<{ idHash?: string; name?: string }> = (response.data && response.data.favoritesLists && response.data.favoritesLists.allFavorites) || [];
+    const match = all.find((item: { idHash?: string; name?: string }) => item.name === DEFAULT_FAVORITE_NAME);
+    return match && match.idHash ? match.idHash : undefined;
+}
+
+// Returns the titleSlugs in the default "Favorite" list. The Favorite explorer
+// tree reads membership from here because the problemset `isFavor` flag no
+// longer reflects this list.
+export async function getFavoriteProblemSlugs(): Promise<Set<string>> {
+    const favoriteSlug: string | undefined = await getDefaultFavoriteSlug();
+    const slugs: Set<string> = new Set<string>();
+    if (!favoriteSlug) {
+        return slugs;
+    }
+
+    const cookie: string = getRequiredCookie();
+    let skip: number = 0;
+    let hasMore: boolean = true;
+    while (hasMore) {
+        const response: IGraphqlResponse<IFavoriteQuestionListData> = await requestJson<IGraphqlResponse<IFavoriteQuestionListData>>({
+            method: "POST",
+            url: getUrl("graphql"),
+            headers: createHeaders(cookie, `${getUrl("base")}/`),
+            data: {
+                query: [
+                    "query favoriteQuestionList($favoriteSlug: String!, $limit: Int, $skip: Int) {",
+                    "  favoriteQuestionList(favoriteSlug: $favoriteSlug, limit: $limit, skip: $skip) {",
+                    "    hasMore",
+                    "    totalLength",
+                    "    questions { titleSlug }",
+                    "  }",
+                    "}",
+                ].join("\n"),
+                variables: { favoriteSlug, limit: DEFAULT_PAGE_SIZE, skip },
+                operationName: "favoriteQuestionList",
+            },
+        }, { label: "favorite question list" });
+
+        assertNoGraphqlErrors(response, "favorite question list");
+        const list = response.data && response.data.favoriteQuestionList;
+        const questions: Array<{ titleSlug?: string }> = (list && list.questions) || [];
+        for (const question of questions) {
+            if (question.titleSlug) {
+                slugs.add(question.titleSlug);
+            }
+        }
+        if (questions.length === 0) {
+            break;
+        }
+        skip += questions.length;
+        hasMore = !!(list && list.hasMore);
+    }
+
+    return slugs;
+}
+
+export async function addFavoriteQuestion(titleSlug: string): Promise<void> {
+    await mutateFavorite("addQuestionToFavoriteV2", titleSlug);
+}
+
+export async function removeFavoriteQuestion(titleSlug: string): Promise<void> {
+    await mutateFavorite("removeQuestionFromFavoriteV2", titleSlug);
+}
+
+async function mutateFavorite(operationName: "addQuestionToFavoriteV2" | "removeQuestionFromFavoriteV2", titleSlug: string): Promise<void> {
+    const favoriteSlug: string | undefined = await getDefaultFavoriteSlug();
+    if (!favoriteSlug) {
+        throw new DirectApiUnsupportedError(`Could not find your default "${DEFAULT_FAVORITE_NAME}" list on LeetCode.`, false);
+    }
+
+    const cookie: string = getRequiredCookie();
+    const response: IGraphqlResponse<IFavoriteMutationData> = await requestJson<IGraphqlResponse<IFavoriteMutationData>>({
+        method: "POST",
+        url: getUrl("graphql"),
+        headers: createHeaders(cookie, `${getUrl("base")}/problems/${titleSlug}/`),
+        data: {
+            query: [
+                `mutation ${operationName}($favoriteSlug: String!, $questionSlug: String!) {`,
+                `  ${operationName}(favoriteSlug: $favoriteSlug, questionSlug: $questionSlug) {`,
+                "    ok",
+                "    error",
+                "  }",
+                "}",
+            ].join("\n"),
+            variables: { favoriteSlug, questionSlug: titleSlug },
+            operationName,
+        },
+    }, { label: operationName });
+
+    assertNoGraphqlErrors(response, operationName);
+    const result = response.data && response.data[operationName];
+    if (!result || !result.ok) {
+        const message: string = (result && result.error) || "unknown error";
+        throw new DirectApiUnsupportedError(`LeetCode rejected the favorite update: ${message}.`, false);
+    }
+}
+
 export function mapGlobalProblem(raw: IGlobalQuestionListItem): ILeetCodeProblem {
     return {
         acRate: raw.acRate || 0,
