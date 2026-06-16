@@ -38,25 +38,32 @@
                 <small>Minimum minutes between successful automatic syncs. To sync again now, click Expire now in the popup, then open or refresh a leetcode.com page. Default: 30.</small>
             </label>
 
-            <label class="check-row">
-                <input id="show-cookie-only-button" type="checkbox">
-                <span>
-                    <strong>Show cookie-only sync button</strong>
-                    <small>Auto-saves this preference. Adds an optional popup button that sends cookies immediately. It cannot capture Cloudflare or browser request headers; for normal sync, click Expire now, then open or refresh a leetcode.com page.</small>
-                </span>
-            </label>
+            <section class="advanced">
+                <h2>Advanced</h2>
 
-            <label class="check-row">
-                <input id="dev-mode" type="checkbox">
-                <span>
-                    <strong>Developer mode</strong>
-                    <small>Auto-saves this preference. Captures the exact cookie/header payload sent to VS Code so you can copy it from the popup into a local integration-test fixture. <strong>The captured payload contains your LeetCode login secrets</strong> — keep it local. Turning this off wipes the captured payload.</small>
-                </span>
-            </label>
+                <label class="check-row">
+                    <input id="show-cookie-only-button" type="checkbox">
+                    <span>
+                        <strong>Show the "Sync cookies only now" button</strong>
+                        <small>Auto-saves this preference. Adds an optional popup button that sends cookies immediately. It cannot capture Cloudflare or browser request headers; for normal sync, click Expire now, then open or refresh a leetcode.com page.</small>
+                    </span>
+                </label>
+
+                <label class="check-row">
+                    <input id="dev-mode" type="checkbox">
+                    <span>
+                        <strong>Developer mode</strong>
+                        <small>Auto-saves this preference. Captures the exact cookie/header payload sent to VS Code so you can copy it from the popup into a local integration-test fixture. <strong>The captured payload contains your LeetCode login secrets</strong> — keep it local. Turning this off wipes the captured payload.</small>
+                    </span>
+                </label>
+
+                <div class="actions">
+                    <button id="sync-now" type="button" class="secondary">Sync cookies only now</button>
+                </div>
+            </section>
 
             <div class="actions">
                 <button type="submit">Save</button>
-                <button id="sync-now" type="button" class="secondary">Cookie-only sync</button>
             </div>
 
             <p id="status" class="status" role="status"></p>

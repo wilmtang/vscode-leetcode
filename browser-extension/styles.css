@@ -173,6 +173,16 @@ input[type="checkbox"] {
     overflow-wrap: anywhere;
 }
 
+.advanced {
+    margin-top: 8px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.advanced > h2 {
+    margin-bottom: 14px;
+}
+
 .sync-mode {
     margin: 0 0 14px;
     padding: 10px 0 0;

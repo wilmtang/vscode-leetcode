@@ -11,7 +11,6 @@ const optionsButton = document.getElementById("open-options");
 const devSection = document.getElementById("dev-section");
 const devCaptureStatus = document.getElementById("dev-capture-status");
 const copyFixtureButton = document.getElementById("copy-fixture");
-const captureNowButton = document.getElementById("capture-now");
 const clearFixtureButton = document.getElementById("clear-fixture");
 
 let currentSettings = null;
@@ -31,7 +30,7 @@ expireNowButton.addEventListener("click", async () => {
 cookieOnlySyncButton.addEventListener("click", async () => {
     setStatus("Sending cookies only...", "");
     const result = await sendMessage({ type: "syncNow", reason: "popup-cookie-only" });
-    setStatus(result.ok ? result.message || "Cookie-only sync sent to VS Code." : result.error, getStatusKind(result));
+    setStatus(result.ok ? result.message || "Synced cookies only to VS Code." : result.error, getStatusKind(result));
     await refreshSettings();
 });
 
@@ -61,18 +60,6 @@ copyFixtureButton.addEventListener("click", async () => {
     if (!copied) {
         console.info("[leetcode-auth-sync] Test fixture:\n" + json);
     }
-    await refreshDevSection();
-});
-
-captureNowButton.addEventListener("click", async () => {
-    setStatus("Capturing payload...", "");
-    const result = await sendMessage({ type: "captureDevPayloadNow" });
-    setStatus(
-        result.ok
-            ? "Captured cookie payload. Refresh a leetcode.com page to also capture browser headers."
-            : result.error,
-        result.ok ? "success" : "error"
-    );
     await refreshDevSection();
 });
 
@@ -122,7 +109,7 @@ async function refreshDevSection() {
 
 function renderDevCaptureStatus(result) {
     if (!result || !result.ok || !result.payload) {
-        devCaptureStatus.textContent = "No payload captured yet. Refresh a leetcode.com page, or click Capture now.";
+        devCaptureStatus.textContent = "No payload captured yet. Refresh a leetcode.com page, then click Copy test fixture.";
         clearFixtureButton.disabled = true;
         return;
     }

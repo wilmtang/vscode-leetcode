@@ -19,8 +19,8 @@ showCookieOnlyButtonInput.addEventListener("change", async () => {
     await saveSettings(false);
     setStatus(
         showCookieOnlyButtonInput.checked
-            ? "Cookie-only sync button enabled in the popup."
-            : "Cookie-only sync button hidden from the popup.",
+            ? "\"Sync cookies only now\" button enabled in the popup."
+            : "\"Sync cookies only now\" button hidden from the popup.",
         "success"
     );
 });
@@ -39,7 +39,7 @@ syncButton.addEventListener("click", async () => {
     await saveSettings(false);
     setStatus("Sending cookies only...", "");
     const result = await sendMessage({ type: "syncNow", reason: "options-cookie-only" });
-    setStatus(result.ok ? result.message || "Cookie-only sync sent to VS Code." : result.error, getStatusKind(result));
+    setStatus(result.ok ? result.message || "Synced cookies only to VS Code." : result.error, getStatusKind(result));
 });
 
 async function loadSettings() {
