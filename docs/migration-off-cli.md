@@ -1,7 +1,8 @@
 # Migrating `leetcode-vscode` off `vsc-leetcode-cli`
 
-> **Living execution plan.** Last updated 2026-06-15.
+> **Living execution plan.** Last updated 2026-06-16.
 > Grounded in the actual repo state, not a blank-page rewrite.
+> **✅ Migration complete — all phases landed; the `vsc-leetcode-cli` dependency is removed.**
 
 ## Goal
 
@@ -36,7 +37,7 @@ requests using synced browser cookies, then remove the CLI dependency safely.
 | 7 | Favorites | ✅ Done |
 | 8 | Solutions / discussions | ✅ Done |
 | 9 | Remove the CLI | ✅ Done |
-| 10 | Docs & validation | ⬜ Not started |
+| 10 | Docs & validation | ✅ Done |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started
 
@@ -331,10 +332,20 @@ coupling and startup dependency.
   compiles; offline net green (31 tests). `require-from-string` lingers in
   `node_modules` only as a transitive dep of another package, not our code.
 
-### Phase 10 — Docs & validation ⬜
-- README auth-sync diagram (drop CLI session/cache), requirements (drop Node),
-  settings table, changelog. Smoke matrix on `leetcode.com`; mark `leetcode.cn`
-  inherited unless CN smoke tests are actually run.
+### Phase 10 — Docs & validation ✅
+- **README:** rewrote the auth-sync data-flow diagram (cookie → global state →
+  direct HTTP/GraphQL; dropped the "bundled CLI session/cache" nodes); replaced
+  the **Requirements** section to state Node.js is no longer required (with the
+  `curl` Cloudflare-fallback note); removed the **Manage Session** feature section
+  and the `leetcode.nodePath` settings row; updated the acknowledgement to note
+  the CLI is no longer bundled.
+- **Changelog:** added a `0.19.0` entry (direct API, no Node, KaTeX, slug
+  hardening, sessions removed, deps dropped); bumped `package.json` to `0.19.0`.
+- **Validation / smoke matrix:** offline net green (31 tests); the live
+  `leetcode.com` suite is green (auth, catalog, full+judge detail, solutions) and
+  the opt-in favorites round-trip + real submit paths were exercised live during
+  Phases 7–8. `leetcode.cn` is marked **inherited (untested)** in the README,
+  settings, and changelog — no CN smoke tests were run.
 
 ---
 
@@ -367,3 +378,4 @@ ground rules, never fall back after a confirmed Cloudflare/LeetCode rejection.
 | 2026-06-16 | *(this branch)* | Phase 7: favorites off the CLI via the GraphQL **V2** mutations (probed live); Favorite tree reads the default list's contents since `isFavor` is decoupled. |
 | 2026-06-16 | *(this branch)* | Phase 8: solutions off the CLI via `ugcArticleSolutionArticles`/`ugcArticleSolutionArticle` (probed live); rendered through the shared `textRenderer`; clear empty state. |
 | 2026-06-16 | *(this branch)* | Phase 9: deleted `leetCodeExecutor.ts`; submit/test call the direct path (no fallback); dropped `vsc-leetcode-cli`/`require-from-string`/`unescape-js` deps + `leetcode.nodePath`. |
+| 2026-06-16 | *(this branch)* | Phase 10: README (no-Node requirements, redrawn diagram, dropped session/nodePath docs) + `0.19.0` changelog/version bump; leetcode.com smoke matrix green. **Migration complete.** |

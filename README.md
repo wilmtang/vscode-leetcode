@@ -100,11 +100,10 @@ flowchart LR
     A["You sign in on leetcode.com"] --> B["Browser extension reads LeetCode cookies"]
     B --> C["POST http://127.0.0.1:17899/auth/update"]
     C --> D["VS Code extension auth-sync server"]
-    D --> E["Existing cookie login path"]
-    E --> F["VS Code global state"]
-    E --> G["Bundled vsc-leetcode-cli session/cache"]
-    F --> H["LeetCode explorer refreshes"]
-    G --> I["Test and submit use the synced session"]
+    D --> E["Cookie stored in VS Code global state"]
+    E --> F["LeetCode explorer refreshes"]
+    E --> G["Direct LeetCode HTTP/GraphQL requests"]
+    G --> H["Browse, test, and submit use the synced cookie"]
 ```
 
 Important details:
@@ -228,7 +227,7 @@ Reload the browser extension after changes to `browser-extension/background.js`,
 4. In VS Code, choose `LeetCode: Sign In`, then `Auto Cookie Sync`.
 5. In the browser extension popup, click `Expire now`, then open or refresh any `leetcode.com` page.
 6. Confirm the VS Code waiting notification closes and the LeetCode explorer refreshes as signed in.
-7. Run a problem test or submit command to confirm the bundled CLI session was updated.
+7. Run a problem test or submit command to confirm the synced cookie works against LeetCode directly.
 
 You can also smoke-test the local listener:
 
@@ -282,8 +281,13 @@ Chrome publication is handled by `.github/workflows/chrome-extension.yml`. Build
 ## Requirements
 
 - [VS Code 1.57.0+](https://code.visualstudio.com/)
-- [Node.js 10+](https://nodejs.org)
-  > NOTE: Please make sure that `Node` is in your `PATH` environment variable. You can also use the setting `leetcode.nodePath` to specify the location of your `Node.js` executable.
+
+> **No Node.js required.** As of this fork the extension talks to LeetCode
+> directly over HTTP/GraphQL using your synced browser cookie, so it no longer
+> bundles or shells out to the `vsc-leetcode-cli` and does not need a `Node.js`
+> runtime on your `PATH`. (On the rare occasion LeetCode serves a Cloudflare
+> challenge, the extension falls back to the system `curl`, which ships with
+> macOS, Windows 10+, and most Linux distros.)
 
 ## Quick Start
 
@@ -369,16 +373,6 @@ Chrome publication is handled by `.github/workflows/chrome-extension.yml`. Build
 
 - By clicking the button ![btn_search](https://raw.githubusercontent.com/wilmtang/vscode-leetcode/main/docs/imgs/btn_search.png) at the **explorer's navigation bar**, you can search the problems by keywords.
 
----
-
-### Manage Session
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/wilmtang/vscode-leetcode/main/docs/imgs/session.png" alt="Manage Session" />
-</p>
-
-- To manage your LeetCode sessions, just clicking the `LeetCode: ***` at the bottom of the status bar. You can **switch** between sessions or **create**, **delete** a session.
-
 ## Settings
 
 | Setting Name                      | Description                                                                                                                                                                                                                                                   | Default Value      |
@@ -392,7 +386,6 @@ Chrome publication is handled by `.github/workflows/chrome-extension.yml`. Build
 | `leetcode.enableStatusBar`        | Specify whether the LeetCode status bar will be shown or not.                                                                                                                                                                                                 | `true`             |
 | `leetcode.editor.shortcuts`       | Specify the customized shortcuts in editors. Supported values are: `submit`, `test`, `star`, `solution` and `description`.                                                                                                                                    | `["submit, test"]` |
 | `leetcode.enableSideMode`         | Specify whether `preview`, `solution` and `submission` tab should be grouped into the second editor column when solving a problem.                                                                                                                            | `true`             |
-| `leetcode.nodePath`               | Specify the `Node.js` executable path. for example, C:\Program Files\nodejs\node.exe                                                                                                                                                                          | `node`             |
 | `leetcode.showCommentDescription` | Specify whether to include the problem description in the comments                                                                                                                                                                                            | `false`            |
 | `leetcode.useEndpointTranslation` | Use endpoint's translation (if available)                                                                                                                                                                                                                     | `true`             |
 | `leetcode.colorizeProblems`       | Add difficulty badge and colorize problems files in explorer tree                                                                                                                                                                                             | `true`             |
@@ -417,5 +410,5 @@ Refer to [CHANGELOG](https://github.com/wilmtang/vscode-leetcode/blob/main/CHANG
 
 ## Acknowledgement
 
-- This extension is based on [@skygragon](https://github.com/skygragon)'s [leetcode-cli](https://github.com/skygragon/leetcode-cli) open source project.
+- This extension originated from [@jdneo](https://github.com/jdneo)'s [vscode-leetcode](https://github.com/LeetCode-OpenSource/vscode-leetcode), which built on [@skygragon](https://github.com/skygragon)'s [leetcode-cli](https://github.com/skygragon/leetcode-cli). This fork no longer bundles `leetcode-cli`; it talks to LeetCode directly using a synced browser cookie.
 - Special thanks to our [contributors](https://github.com/wilmtang/vscode-leetcode/blob/main/ACKNOWLEDGEMENTS.md).

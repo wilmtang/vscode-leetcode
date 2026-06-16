@@ -3,6 +3,19 @@ All notable changes to the "leetcode" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.19.0]
+### Changed
+- The extension now talks to LeetCode **directly over HTTP/GraphQL** using the synced browser cookie, instead of bundling and shelling out to `vsc-leetcode-cli`. **Node.js is no longer required** to run the extension.
+- Problem list, problem descriptions, code-file generation, startup sign-in, favorites, and top-voted solutions are all fetched through the direct API. Descriptions and solutions now render LaTeX math via KaTeX.
+- Generated solution files embed the canonical `https://leetcode.com/problems/<slug>/` URL in the `@lc` header, so Test/Submit recover the problem slug even with custom filename configurations.
+
+### Removed
+- The **Manage Sessions** feature — LeetCode retired the underlying session API.
+- The bundled `vsc-leetcode-cli` (and `require-from-string`, `unescape-js`) dependencies and the `leetcode.nodePath` setting.
+
+### Notes
+- Validated against `leetcode.com`. `leetcode.cn` support is inherited from the upstream extension and has not been freshly tested by this fork.
+
 ## [0.18.12]
 ### Added
 - Publish VS Code extension releases to the Open VSX Registry.
