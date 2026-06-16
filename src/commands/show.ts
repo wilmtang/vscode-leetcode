@@ -33,7 +33,7 @@ import * as list from "./list";
 import { getLeetCodeEndpoint } from "./plugin";
 import { globalState } from "../globalState";
 
-export async function previewProblem(input: IProblem | vscode.Uri, isSideMode: boolean = false): Promise<void> {
+export async function previewProblem(input: IProblem | vscode.Uri, isSideMode: boolean = false, prefetched?: ILeetCodeQuestionDetail): Promise<void> {
     let node: IProblem;
 
     if (input instanceof vscode.Uri) {
@@ -68,8 +68,10 @@ export async function previewProblem(input: IProblem | vscode.Uri, isSideMode: b
     }
 
     try {
+        // Reuse the detail already fetched while generating the file (when opening
+        // a problem with the webview description) instead of fetching it twice.
         const needTranslation: boolean = settingUtils.shouldUseEndpointTranslation();
-        const detail: ILeetCodeQuestionDetail = await getQuestionDetail(slug, needTranslation);
+        const detail: ILeetCodeQuestionDetail = prefetched || await getQuestionDetail(slug, needTranslation);
         leetCodePreviewProvider.show(detail, node, isSideMode);
     } catch (error) {
         leetCodeChannel.appendLine(error.toString());
@@ -234,7 +236,7 @@ async function showProblemInternal(node: IProblem): Promise<void> {
         const descriptionConfig: IDescriptionConfiguration = settingUtils.getDescriptionConfiguration();
         const needTranslation: boolean = settingUtils.shouldUseEndpointTranslation();
 
-        await generateProblemFile(node, language, finalPath, descriptionConfig.showInComment, needTranslation);
+        const detail: ILeetCodeQuestionDetail | undefined = await generateProblemFile(node, language, finalPath, descriptionConfig.showInComment, needTranslation);
         const promises: any[] = [
             vscode.window.showTextDocument(vscode.Uri.file(finalPath), {
                 preview: false,
@@ -248,7 +250,7 @@ async function showProblemInternal(node: IProblem): Promise<void> {
             ),
         ];
         if (descriptionConfig.showInWebview) {
-            promises.push(showDescriptionView(node));
+            promises.push(showDescriptionView(node, detail));
         }
 
         await Promise.all(promises);
@@ -260,15 +262,18 @@ async function showProblemInternal(node: IProblem): Promise<void> {
 // Generates the solution file directly from the API (replacing the CLI
 // `show -c/-cx`). The canonical problem URL is embedded in the @lc header so the
 // already-migrated submit/test parseSlug() recovers the slug for any filename.
+// Returns the fetched detail so the caller can reuse it for the webview preview
+// (avoiding a second getQuestionDetail call); returns undefined when the file
+// already exists and nothing was fetched.
 async function generateProblemFile(
     node: IProblem,
     language: string,
     filePath: string,
     showDescriptionInComment: boolean,
     needTranslation: boolean,
-): Promise<void> {
+): Promise<ILeetCodeQuestionDetail | undefined> {
     if (await fse.pathExists(filePath)) {
-        return;
+        return undefined;
     }
 
     const slug: string | undefined = node.titleSlug;
@@ -292,10 +297,12 @@ async function generateProblemFile(
         showDescriptionInComment,
         endpointBase: getUrl("base"),
     }));
+
+    return detail;
 }
 
-async function showDescriptionView(node: IProblem): Promise<void> {
-    return previewProblem(node, vscode.workspace.getConfiguration("leetcode").get<boolean>("enableSideMode", true));
+async function showDescriptionView(node: IProblem, detail?: ILeetCodeQuestionDetail): Promise<void> {
+    return previewProblem(node, vscode.workspace.getConfiguration("leetcode").get<boolean>("enableSideMode", true), detail);
 }
 async function parseProblemsToPicks(p: Promise<IProblem[]>): Promise<Array<IQuickItemEx<IProblem>>> {
     return new Promise(async (resolve: (res: Array<IQuickItemEx<IProblem>>) => void): Promise<void> => {

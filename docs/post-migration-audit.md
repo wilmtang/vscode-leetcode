@@ -14,7 +14,7 @@
 | 3 | Unbounded favorites pagination loop | 🟠 Medium | ✅ Fixed |
 | 4 | Preview webview XSS hardening (`'unsafe-inline'` + regex sanitizer) | 🟡 Low | ✅ Fixed |
 | 5 | Inline `$…$` math false positives (currency) | 🟡 Low | ✅ Fixed |
-| 6 | Redundant question-detail fetch when opening a problem | 🟡 Low | ⬜ Open |
+| 6 | Redundant question-detail fetch when opening a problem | 🟡 Low | ✅ Fixed |
 | 7 | No HTTP request timeout | ⚪ Minor | ⬜ Open |
 | 8 | Silent favorites degradation | ⚪ Minor | ⬜ Open |
 | 9 | Empty code body when a language has no snippet | ⚪ Minor | ⬜ Open |
@@ -120,7 +120,7 @@ the opening `$` must not be followed by whitespace and the closing `$` must not 
 followed by a digit, so paired currency amounts ("you have $5 and $3") stay as
 plain text. A regression test covers it; genuine inline math still renders.
 
-### 6 — Redundant question-detail fetch when opening a problem 🟡 *(Open)*
+### 6 — Redundant question-detail fetch when opening a problem 🟡 *(✅ Fixed)*
 
 **Symptom.** `showProblemInternal` fetches the full question detail to generate
 the file, then `showDescriptionView` → `previewProblem` fetches it **again** for
@@ -128,8 +128,11 @@ the webview when the description mode is "In Webview"/"Both"
 ([show.ts](../src/commands/show.ts)). One extra network round-trip per problem
 open.
 
-**Fix.** Have the file generator return the detail it fetched and pass it through
-to `previewProblem`, which fetches only when a detail is not supplied.
+**Fix (done).** `generateProblemFile` now returns the `ILeetCodeQuestionDetail` it
+fetched, `showProblemInternal` passes it to `showDescriptionView` → `previewProblem`,
+and `previewProblem` gained a `prefetched?` parameter — it fetches only when no
+detail is supplied. Opening a problem with the webview description is now one fetch
+instead of two.
 
 ### 7 — No HTTP request timeout ⚪ *(Open)*
 
@@ -177,3 +180,4 @@ fallback). No change needed — recorded for awareness.
 | 2026-06-16 | *(this branch)* | Fix #3: bound the favorites pagination loop by `totalLength` + a 50-page backstop. |
 | 2026-06-16 | *(this branch)* | Fix #4: nonce the preview's inline script; drop `script-src 'unsafe-inline'`. |
 | 2026-06-16 | *(this branch)* | Fix #5: currency guard on the inline `$…$` math matcher (+ regression test). |
+| 2026-06-16 | *(this branch)* | Fix #6: reuse the generated file's question detail for the webview preview (one fetch, not two). |
