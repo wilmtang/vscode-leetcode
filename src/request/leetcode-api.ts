@@ -392,6 +392,164 @@ async function mutateFavorite(operationName: "addQuestionToFavoriteV2" | "remove
     }
 }
 
+// ---------------------------------------------------------------------------
+// Community solutions
+//
+// Replaces the CLI's `show --solution`. The current "Solutions" tab is backed by
+// `ugcArticleSolutionArticles` (the list) + `ugcArticleSolutionArticle` (one
+// article's markdown), verified live. We fetch the most-voted article, optionally
+// filtered by a language tag with an unfiltered fallback so something readable
+// always renders. CN is inherited (same operations) but untested.
+// ---------------------------------------------------------------------------
+
+export interface ILeetCodeSolutionArticle {
+    author: string;
+    authorSlug: string;
+    content: string;
+    title: string;
+    topicId: string;
+    upvotes: number;
+    url: string;
+}
+
+interface IUgcUser {
+    userAvatar?: string;
+    userName?: string;
+    userSlug?: string;
+}
+
+interface ISolutionArticleNode {
+    author?: IUgcUser;
+    reactions?: Array<{ count?: number; reactionType?: string }>;
+    slug?: string;
+    title?: string;
+    topicId?: number | string;
+}
+
+interface ISolutionArticlesData {
+    ugcArticleSolutionArticles?: {
+        edges?: Array<{ node?: ISolutionArticleNode }>;
+        totalNum?: number;
+    };
+}
+
+interface ISolutionArticleData {
+    ugcArticleSolutionArticle?: {
+        content?: string;
+        slug?: string;
+        title?: string;
+        topicId?: number | string;
+    };
+}
+
+export async function getTopSolutionArticle(titleSlug: string, langSlug?: string): Promise<ILeetCodeSolutionArticle | undefined> {
+    const cookie: string = getRequiredCookie();
+    const tagSlugs: string[] = normalizeLanguageTags(langSlug);
+
+    let node: ISolutionArticleNode | undefined = await fetchTopSolutionNode(titleSlug, tagSlugs, cookie);
+    if (!node && tagSlugs.length > 0) {
+        // No solution in the requested language — fall back to the most-voted overall.
+        node = await fetchTopSolutionNode(titleSlug, [], cookie);
+    }
+    if (!node || node.topicId === undefined) {
+        return undefined;
+    }
+
+    const topicId: string = String(node.topicId);
+    const content: string = await fetchSolutionContent(topicId, cookie);
+    const author: IUgcUser = node.author || {};
+    return {
+        author: author.userName || "Anonymous",
+        authorSlug: author.userSlug || "",
+        content,
+        title: node.title || "Solution",
+        topicId,
+        upvotes: countUpvotes(node.reactions),
+        url: `${getUrl("base")}/problems/${titleSlug}/solutions/${topicId}/${node.slug || ""}/`,
+    };
+}
+
+async function fetchTopSolutionNode(titleSlug: string, tagSlugs: string[], cookie: string): Promise<ISolutionArticleNode | undefined> {
+    const response: IGraphqlResponse<ISolutionArticlesData> = await requestJson<IGraphqlResponse<ISolutionArticlesData>>({
+        method: "POST",
+        url: getUrl("graphql"),
+        headers: createHeaders(cookie, `${getUrl("base")}/problems/${titleSlug}/solutions/`),
+        data: {
+            query: [
+                "query ugcArticleSolutionArticles($questionSlug: String!, $orderBy: ArticleOrderByEnum, $skip: Int, $first: Int, $tagSlugs: [String!]) {",
+                "  ugcArticleSolutionArticles(questionSlug: $questionSlug, orderBy: $orderBy, skip: $skip, first: $first, tagSlugs: $tagSlugs) {",
+                "    totalNum",
+                "    edges {",
+                "      node {",
+                "        slug",
+                "        title",
+                "        topicId",
+                "        reactions { count reactionType }",
+                "        author { userName userSlug userAvatar }",
+                "      }",
+                "    }",
+                "  }",
+                "}",
+            ].join("\n"),
+            variables: { questionSlug: titleSlug, orderBy: "MOST_VOTES", skip: 0, first: 1, tagSlugs },
+            operationName: "ugcArticleSolutionArticles",
+        },
+    }, { label: "solution articles" });
+
+    assertNoGraphqlErrors(response, "solution articles");
+    const edges = response.data && response.data.ugcArticleSolutionArticles && response.data.ugcArticleSolutionArticles.edges;
+    const first = edges && edges[0];
+    return first ? first.node : undefined;
+}
+
+async function fetchSolutionContent(topicId: string, cookie: string): Promise<string> {
+    const response: IGraphqlResponse<ISolutionArticleData> = await requestJson<IGraphqlResponse<ISolutionArticleData>>({
+        method: "POST",
+        url: getUrl("graphql"),
+        headers: createHeaders(cookie, `${getUrl("base")}/`),
+        data: {
+            query: [
+                "query ugcArticleSolutionArticle($topicId: ID!) {",
+                "  ugcArticleSolutionArticle(topicId: $topicId) {",
+                "    title",
+                "    slug",
+                "    topicId",
+                "    content",
+                "  }",
+                "}",
+            ].join("\n"),
+            variables: { topicId },
+            operationName: "ugcArticleSolutionArticle",
+        },
+    }, { label: "solution article" });
+
+    assertNoGraphqlErrors(response, "solution article");
+    const article = response.data && response.data.ugcArticleSolutionArticle;
+    return (article && article.content) || "";
+}
+
+function countUpvotes(reactions: Array<{ count?: number; reactionType?: string }> | undefined): number {
+    if (!reactions) {
+        return 0;
+    }
+
+    const upvote = reactions.find((reaction) => reaction.reactionType === "UPVOTE");
+    return (upvote && upvote.count) || 0;
+}
+
+// LeetCode tags python3 and python solutions separately; normalize so picking
+// either surfaces the richer pool, matching the CLI's python3/python handling.
+function normalizeLanguageTags(langSlug?: string): string[] {
+    if (!langSlug) {
+        return [];
+    }
+    if (langSlug === "python" || langSlug === "python3") {
+        return ["python3", "python"];
+    }
+
+    return [langSlug];
+}
+
 export function mapGlobalProblem(raw: IGlobalQuestionListItem): ILeetCodeProblem {
     return {
         acRate: raw.acRate || 0,

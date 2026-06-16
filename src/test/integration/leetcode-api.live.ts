@@ -8,8 +8,10 @@ import {
     getDefaultFavoriteSlug,
     getFavoriteProblemSlugs,
     getQuestionDetail,
+    getTopSolutionArticle,
     ILeetCodeProblem,
     ILeetCodeQuestionDetail,
+    ILeetCodeSolutionArticle,
     listProblems,
     removeFavoriteQuestion,
 } from "../../request/leetcode-api";
@@ -118,6 +120,32 @@ describe("leetcode-api (live)", () => {
 
         it("both detail paths agree on the internal questionId", () => {
             assert.strictEqual(detail.questionId, judgeMeta.questionId, "full and judge-metadata questionId disagree");
+        });
+    });
+
+    describe("solutions", () => {
+        let article: ILeetCodeSolutionArticle | undefined;
+
+        before(async function (): Promise<void> {
+            this.timeout(30 * 1000);
+            article = await getTopSolutionArticle("two-sum", "python3");
+        });
+
+        it("returns a readable top-voted community solution for two-sum", () => {
+            assert.ok(article, "expected a community solution for two-sum");
+            assert.ok(article!.title.length > 0, "expected a solution title");
+            assert.ok(article!.content.length > 50, "expected non-trivial markdown content");
+            assert.ok(article!.author.length > 0, "expected an author");
+            assert.ok(article!.upvotes > 0, "expected the most-voted solution to have upvotes");
+            assert.ok(article!.url.indexOf("/solutions/") >= 0, `expected a solutions URL, got ${article!.url}`);
+        });
+
+        it("falls back to the most-voted overall when the language has no solutions", async function (): Promise<void> {
+            this.timeout(30 * 1000);
+            // No solution is tagged with a bogus language, so this exercises the
+            // unfiltered fallback rather than returning an empty state.
+            const fallback = await getTopSolutionArticle("two-sum", "cobol");
+            assert.ok(fallback, "expected the unfiltered fallback to still return a solution");
         });
     });
 

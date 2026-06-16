@@ -2,18 +2,22 @@
 // Licensed under the MIT license.
 
 import { ViewColumn } from "vscode";
+import { ILeetCodeSolutionArticle } from "../request/leetcode-api";
+import { getUrl } from "../shared";
 import { leetCodePreviewProvider } from "./leetCodePreviewProvider";
 import { ILeetCodeWebviewOption, LeetCodeWebview } from "./LeetCodeWebview";
 import { markdownEngine } from "./markdownEngine";
+import { extractMathPlaceholders, IMathExtraction, restoreMath, sanitizeHtml } from "./textRenderer";
 
 class LeetCodeSolutionProvider extends LeetCodeWebview {
 
     protected readonly viewType: string = "leetcode.solution";
     private problemName: string;
-    private solution: Solution;
+    private article: ILeetCodeSolutionArticle;
 
-    public show(solutionString: string): void {
-        this.solution = this.parseSolution(solutionString);
+    public show(article: ILeetCodeSolutionArticle, problemName: string): void {
+        this.article = article;
+        this.problemName = problemName;
         this.showWebviewInternal();
     }
 
@@ -34,24 +38,23 @@ class LeetCodeSolutionProvider extends LeetCodeWebview {
 
     protected getWebviewContent(): string {
         const styles: string = markdownEngine.getStyles();
-        const { title, url, lang, author, votes } = this.solution;
+        const katexStyle: string = markdownEngine.getKatexStyle();
+        const { title, url, author, authorSlug, upvotes } = this.article;
         const head: string = markdownEngine.render(`# [${title}](${url})`);
-        const auth: string = `[${author}](https://leetcode.com/${author}/)`;
+        const authorLink: string = authorSlug ? `[${author}](${getUrl("base")}/u/${authorSlug}/)` : author;
         const info: string = markdownEngine.render([
-            `| Language |  Author  |  Votes   |`,
-            `| :------: | :------: | :------: |`,
-            `| ${lang}  | ${auth}  | ${votes} |`,
+            `|  Author  |  Votes   |`,
+            `| :------: | :------: |`,
+            `| ${authorLink}  | ${upvotes} |`,
         ].join("\n"));
-        const body: string = markdownEngine.render(this.solution.body, {
-            lang: this.solution.lang,
-            host: "https://discuss.leetcode.com/",
-        });
+        const body: string = this.renderArticleBody(this.article.content);
         return `
             <!DOCTYPE html>
             <html>
             <head>
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; script-src vscode-resource:; style-src vscode-resource:;"/>
+                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; script-src vscode-resource:; style-src vscode-resource: 'unsafe-inline'; font-src vscode-resource:;"/>
                 ${styles}
+                ${katexStyle}
             </head>
             <body class="vscode-body 'scrollBeyondLastLine' 'wordWrap' 'showEditorSelection'" style="tab-size:4">
                 ${head}
@@ -66,29 +69,15 @@ class LeetCodeSolutionProvider extends LeetCodeWebview {
         super.onDidDisposeWebview();
     }
 
-    private parseSolution(raw: string): Solution {
-        raw = raw.slice(1); // skip first empty line
-        [this.problemName, raw] = raw.split(/\n\n([^]+)/); // parse problem name and skip one line
-        const solution: Solution = new Solution();
-        // [^] matches everything including \n, yet can be replaced by . in ES2018's `m` flag
-        [solution.title, raw] = raw.split(/\n\n([^]+)/);
-        [solution.url, raw] = raw.split(/\n\n([^]+)/);
-        [solution.lang, raw] = raw.match(/\* Lang:\s+(.+)\n([^]+)/)!.slice(1);
-        [solution.author, raw] = raw.match(/\* Author:\s+(.+)\n([^]+)/)!.slice(1);
-        [solution.votes, raw] = raw.match(/\* Votes:\s+(\d+)\n\n([^]+)/)!.slice(1);
-        solution.body = raw;
-        return solution;
+    // The solution article content is markdown (with embedded LaTeX). Pull the
+    // math out first so markdown-it leaves it alone, render the markdown, sanitize
+    // it, then splice the KaTeX-rendered math back in.
+    private renderArticleBody(markdown: string): string {
+        const extracted: IMathExtraction = extractMathPlaceholders(markdown || "");
+        const rendered: string = markdownEngine.render(extracted.text, { host: getUrl("base") });
+        const sanitized: string = sanitizeHtml(rendered);
+        return restoreMath(sanitized, extracted.math);
     }
-}
-
-// tslint:disable-next-line:max-classes-per-file
-class Solution {
-    public title: string = "";
-    public url: string = "";
-    public lang: string = "";
-    public author: string = "";
-    public votes: string = "";
-    public body: string = ""; // Markdown supported
 }
 
 export const leetCodeSolutionProvider: LeetCodeSolutionProvider = new LeetCodeSolutionProvider();

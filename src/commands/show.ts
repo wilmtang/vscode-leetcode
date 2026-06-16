@@ -4,14 +4,13 @@
 import * as fse from "fs-extra";
 import * as _ from "lodash";
 import * as path from "path";
-import * as unescapeJS from "unescape-js";
 import * as vscode from "vscode";
 import { explorerNodeManager } from "../explorer/explorerNodeManager";
 import { LeetCodeNode } from "../explorer/LeetCodeNode";
 import { leetCodeChannel } from "../leetCodeChannel";
-import { leetCodeExecutor } from "../leetCodeExecutor";
 import { leetCodeManager } from "../leetCodeManager";
-import { getQuestionDetail, ILeetCodeQuestionDetail } from "../request/leetcode-api";
+import { getQuestionDetail, getTopSolutionArticle, ILeetCodeQuestionDetail, ILeetCodeSolutionArticle } from "../request/leetcode-api";
+import { ISolutionFileMeta, parseSolutionFile } from "../request/leetcode-http";
 import { Endpoint, getUrl, IProblem, IQuickItemEx, languages, PREMIUM_URL_CN, PREMIUM_URL_GLOBAL, ProblemState } from "../shared";
 import { genFileExt, genFileName, getNodeIdFromFile } from "../utils/problemUtils";
 import { generateSolutionFileContent } from "../utils/solutionFileGenerator";
@@ -107,19 +106,8 @@ export async function searchProblem(): Promise<void> {
 }
 
 export async function showSolution(input: LeetCodeNode | vscode.Uri): Promise<void> {
-    let problemInput: string | undefined;
-    if (input instanceof LeetCodeNode) {
-        // Triggerred from explorer
-        problemInput = input.id;
-    } else if (input instanceof vscode.Uri) {
-        // Triggerred from Code Lens/context menu
-        problemInput = `"${input.fsPath}"`;
-    } else if (!input) {
-        // Triggerred from command
-        problemInput = await getActiveFilePath();
-    }
-
-    if (!problemInput) {
+    const target: ISolutionTarget | undefined = await resolveSolutionTarget(input);
+    if (!target) {
         vscode.window.showErrorMessage("Invalid input to fetch the solution data.");
         return;
     }
@@ -129,12 +117,54 @@ export async function showSolution(input: LeetCodeNode | vscode.Uri): Promise<vo
         return;
     }
     try {
-        const needTranslation: boolean = settingUtils.shouldUseEndpointTranslation();
-        const solution: string = await leetCodeExecutor.showSolution(problemInput, language, needTranslation);
-        leetCodeSolutionProvider.show(unescapeJS(solution));
+        const article: ILeetCodeSolutionArticle | undefined = await vscode.window.withProgress(
+            { location: vscode.ProgressLocation.Notification },
+            async (p: vscode.Progress<{ message?: string }>) => {
+                p.report({ message: "Fetching top voted solution from discussions..." });
+                return getTopSolutionArticle(target.titleSlug, language);
+            },
+        );
+        if (!article) {
+            vscode.window.showInformationMessage(`No community solution was found for "${target.name}".`);
+            return;
+        }
+        leetCodeSolutionProvider.show(article, target.name);
     } catch (error) {
         leetCodeChannel.appendLine(error.toString());
         await promptForOpenOutputChannel("Failed to fetch the top voted solution. Please open the output channel for details.", DialogType.error);
+    }
+}
+
+interface ISolutionTarget {
+    titleSlug: string;
+    name: string;
+}
+
+// Resolves the problem slug + display name from however showSolution was
+// triggered: an explorer node carries both directly; a file path is resolved via
+// its frontend id to a cached node, falling back to the slug embedded in the
+// file's @lc header (parseSolutionFile) when the explorer cache misses.
+async function resolveSolutionTarget(input: LeetCodeNode | vscode.Uri): Promise<ISolutionTarget | undefined> {
+    if (input instanceof LeetCodeNode) {
+        return input.titleSlug ? { titleSlug: input.titleSlug, name: input.name } : undefined;
+    }
+
+    const filePath: string | undefined = input instanceof vscode.Uri ? input.fsPath : await getActiveFilePath();
+    if (!filePath) {
+        return undefined;
+    }
+
+    const id: string = await getNodeIdFromFile(filePath);
+    const node: IProblem | undefined = id ? explorerNodeManager.getNodeById(id) : undefined;
+    if (node && node.titleSlug) {
+        return { titleSlug: node.titleSlug, name: node.name };
+    }
+
+    try {
+        const meta: ISolutionFileMeta = await parseSolutionFile(filePath);
+        return { titleSlug: meta.slug, name: node ? node.name : meta.slug };
+    } catch (error) {
+        return undefined;
     }
 }
 
