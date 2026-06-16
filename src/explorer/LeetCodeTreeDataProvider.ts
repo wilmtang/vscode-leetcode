@@ -23,8 +23,11 @@ export class LeetCodeTreeDataProvider implements vscode.TreeDataProvider<LeetCod
         this.context = context;
     }
 
-    public async refresh(): Promise<void> {
-        await explorerNodeManager.refreshCache();
+    // `force` re-fetches the catalog; a soft refresh (force = false) re-renders
+    // from the cached catalog — used for client-side-only changes like sorting
+    // and star toggles.
+    public async refresh(force: boolean = true): Promise<void> {
+        await explorerNodeManager.refreshCache(force);
         this.onDidChangeTreeDataEvent.fire(null);
     }
 

@@ -3,6 +3,7 @@
 // Licensed under the MIT license.
 
 import { customCodeLensProvider } from "../codelens/CustomCodeLensProvider";
+import { explorerNodeManager } from "../explorer/explorerNodeManager";
 import { LeetCodeNode } from "../explorer/LeetCodeNode";
 import { leetCodeTreeDataProvider } from "../explorer/LeetCodeTreeDataProvider";
 import { addFavoriteQuestion, removeFavoriteQuestion } from "../request/leetcode-api";
@@ -37,7 +38,10 @@ async function toggleFavorite(node: LeetCodeNode, addToFavorite: boolean): Promi
         await removeFavoriteQuestion(titleSlug);
     }
 
-    await leetCodeTreeDataProvider.refresh();
+    // Reflect the change in the cached catalog and soft-refresh, instead of
+    // re-fetching the whole catalog just to move one node in/out of Favorites.
+    explorerNodeManager.setProblemFavorite(node.id, addToFavorite);
+    await leetCodeTreeDataProvider.refresh(false /* soft */);
     if (hasStarShortcut()) {
         customCodeLensProvider.refresh();
     }

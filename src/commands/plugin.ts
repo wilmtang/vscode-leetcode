@@ -79,7 +79,8 @@ export async function switchSortingStrategy(): Promise<void> {
 
     const leetCodeConfig: vscode.WorkspaceConfiguration = vscode.workspace.getConfiguration("leetcode");
     await leetCodeConfig.update("problems.sortStrategy", choice.value, true);
-    await leetCodeTreeDataProvider.refresh();
+    // Sorting is applied client-side over the cached catalog; no need to re-fetch.
+    await leetCodeTreeDataProvider.refresh(false /* soft */);
 }
 
 export function getSortingStrategy(): SortingStrategy {

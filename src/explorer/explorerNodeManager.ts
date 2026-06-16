@@ -5,7 +5,7 @@ import * as _ from "lodash";
 import { Disposable } from "vscode";
 import * as list from "../commands/list";
 import { getSortingStrategy } from "../commands/plugin";
-import { Category, defaultProblem, ProblemState, SortingStrategy } from "../shared";
+import { Category, defaultProblem, IProblem, ProblemState, SortingStrategy } from "../shared";
 import { shouldHideSolvedProblem } from "../utils/settingUtils";
 import { LeetCodeNode } from "./LeetCodeNode";
 
@@ -13,11 +13,50 @@ class ExplorerNodeManager implements Disposable {
     private explorerNodeMap: Map<string, LeetCodeNode> = new Map<string, LeetCodeNode>();
     private companySet: Set<string> = new Set<string>();
     private tagSet: Set<string> = new Set<string>();
+    // The fetched catalog is cached so routine re-renders (sort changes, star
+    // toggles) rebuild the trees locally instead of re-fetching ~3,000 problems.
+    private cachedProblems: IProblem[] | undefined;
+    private fetchInFlight: Promise<void> | undefined;
 
-    public async refreshCache(): Promise<void> {
-        this.dispose();
+    // `force` re-fetches the catalog from the API; otherwise the trees are
+    // rebuilt from the cached catalog (or fetched once if the cache is empty).
+    public async refreshCache(force: boolean = true): Promise<void> {
+        if (force || !this.cachedProblems) {
+            await this.fetchProblems();
+        }
+        this.rebuild();
+    }
+
+    // Locally reflect a favorite toggle so the star path can soft-refresh without
+    // re-fetching the whole catalog. Overwritten on the next forced refresh.
+    public setProblemFavorite(problemId: string, isFavorite: boolean): void {
+        const problem: IProblem | undefined = this.cachedProblems && this.cachedProblems.find((p: IProblem) => p.id === problemId);
+        if (problem) {
+            problem.isFavorite = isFavorite;
+        }
+    }
+
+    private async fetchProblems(): Promise<void> {
+        // De-duplicate overlapping refreshes so two quick `statusChanged` events
+        // do not fire two concurrent catalog fetches.
+        if (!this.fetchInFlight) {
+            this.fetchInFlight = (async (): Promise<void> => {
+                try {
+                    this.cachedProblems = await list.listProblems();
+                } finally {
+                    this.fetchInFlight = undefined;
+                }
+            })();
+        }
+        await this.fetchInFlight;
+    }
+
+    private rebuild(): void {
+        this.explorerNodeMap.clear();
+        this.companySet.clear();
+        this.tagSet.clear();
         const shouldHideSolved: boolean = shouldHideSolvedProblem();
-        for (const problem of await list.listProblems()) {
+        for (const problem of this.cachedProblems || []) {
             if (shouldHideSolved && problem.state === ProblemState.AC) {
                 continue;
             }
@@ -152,6 +191,7 @@ class ExplorerNodeManager implements Disposable {
         this.explorerNodeMap.clear();
         this.companySet.clear();
         this.tagSet.clear();
+        this.cachedProblems = undefined;
     }
 
     private sortSubCategoryNodes(subCategoryNodes: LeetCodeNode[], category: Category): void {

@@ -9,7 +9,7 @@
 
 | # | Finding | Severity | Status |
 |---|---|---|---|
-| 1 | Whole catalog re-fetched on every tree refresh (star / sort / startup) | 🔴 High | ⬜ Open |
+| 1 | Whole catalog re-fetched on every tree refresh (star / sort / startup) | 🔴 High | ✅ Fixed |
 | 2 | Favorites & solutions broken on `leetcode.cn` | 🟠 Medium | 📄 Documented — won't fix (PRs welcome) |
 | 3 | Unbounded favorites pagination loop | 🟠 Medium | ⬜ Open |
 | 4 | Preview webview XSS hardening (`'unsafe-inline'` + regex sanitizer) | 🟡 Low | ⬜ Open |
@@ -26,7 +26,7 @@ Legend: ✅ fixed/acceptable · ⬜ open · 📄 documented (won't fix)
 
 ## Findings
 
-### 1 — Whole catalog re-fetched on every tree refresh 🔴 *(Open)*
+### 1 — Whole catalog re-fetched on every tree refresh 🔴 *(✅ Fixed)*
 
 **Symptom.** Routine actions are slow. The CLI cached the problem list locally;
 the direct path has no cache, so `leetCodeTreeDataProvider.refresh()` →
@@ -45,12 +45,15 @@ requests) **plus** the favorites list, *every* time `refresh()` is called.
   catalog fetches (~60 requests). `refreshUserStatus` emits even when nothing
   changed.
 
-**Fix.** Cache the catalog in `explorerNodeManager`; `refreshCache(force)` only
-re-fetches when forced (or the cache is empty), otherwise rebuilds the trees from
-the cached data. Star and sort become "soft" refreshes (local update + re-render,
-no network). Gate `refreshUserStatus`'s emit on an actual identity change so a
-no-op cookie re-verify no longer triggers a refetch. Also guard against
-overlapping `refreshCache()` calls with an in-flight promise.
+**Fix (done).** `explorerNodeManager` now caches the fetched catalog
+(`cachedProblems`); `refreshCache(force)` re-fetches only when `force` is true (or
+the cache is empty) and otherwise rebuilds the trees from cache. `LeetCodeNode`
+tree refreshes gained a `refresh(force = true)` flag: **star** (after a new
+`setProblemFavorite` local update) and **sort** now soft-refresh (`refresh(false)`,
+no network). `refreshUserStatus` only emits `statusChanged` on an actual identity
+change, so a cached cold start does **one** fetch instead of two and a no-op
+re-verify does none. Overlapping fetches are de-duplicated via an in-flight promise
+(`fetchInFlight`). Compiles; offline net green (31 tests).
 
 ### 2 — Favorites & solutions broken on `leetcode.cn` 🟠 *(Documented — won't fix)*
 
@@ -164,3 +167,4 @@ fallback). No change needed — recorded for awareness.
 | When | Commit | What |
 |---|---|---|
 | 2026-06-16 | *(this commit)* | Documented the post-migration audit findings. |
+| 2026-06-16 | *(this branch)* | Fix #1: cache the catalog; star/sort soft-refresh; gate redundant status emits; de-dup overlapping fetches. |

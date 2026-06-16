@@ -64,19 +64,25 @@ class LeetCodeManager extends EventEmitter {
 
             const data: UserDataType = await fetchUserStatus();
             if (data.isSignedIn && data.username) {
+                // Only emit when the identity actually changed; a no-op re-verify
+                // (e.g. the background refresh after a cached cold start) must not
+                // trigger another full catalog refetch.
+                const changed: boolean = this.currentUser !== data.username || this.userStatus !== UserStatus.SignedIn;
                 globalState.setUserStatus(data);
                 this.currentUser = data.username;
                 this.userStatus = UserStatus.SignedIn;
-                this.emit("statusChanged");
+                if (changed) {
+                    this.emit("statusChanged");
+                }
             } else {
                 this.applySignedOut();
             }
         } catch (error) {
+            // Transient/offline error: keep any cached identity and stay quiet (no
+            // state change, so no refresh). Only a definitive loss clears state.
             leetCodeChannel.appendLine(`[auth] Could not verify LeetCode session: ${error}`);
             if (!this.currentUser) {
                 this.applySignedOut();
-            } else {
-                this.emit("statusChanged");
             }
         }
     }
