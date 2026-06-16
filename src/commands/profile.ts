@@ -1,7 +1,7 @@
 // Copyright (c) jdneo. All rights reserved.
 // Licensed under the MIT license.
 
-import { authSyncServer, IAuthSyncStatusSnapshot } from "../auth/authSyncServer";
+import { getAuthSyncSummary } from "../auth/authSyncSummary";
 import { globalState, UserDataType } from "../globalState";
 import { leetCodeChannel } from "../leetCodeChannel";
 import { leetCodeManager } from "../leetCodeManager";
@@ -56,22 +56,15 @@ async function fetchSection<T>(id: ProfileSectionId, fetch: () => Promise<T>, ap
     }
 }
 
-// Snapshots the local cookie/auth-sync state for the panel's "Sync" card. All of
-// this is synchronous local state (no network), so the card paints immediately.
+// Snapshots the local cookie/auth-sync state for the panel's "Session Sync"
+// card. All of this is synchronous local state (no network), so the card paints
+// immediately. The label/tone/timestamps come from the shared summary that also
+// backs the status-bar tooltip; only the account fields are added here.
 function gatherSyncStatus(username: string, cached: UserDataType | undefined): IProfileSyncStatus {
-    const snapshot: IAuthSyncStatusSnapshot = authSyncServer.getStatusSnapshot();
     return {
+        ...getAuthSyncSummary(),
         username: (cached && cached.username) || username,
         isPremium: !!(cached && cached.isPremium),
         isVerified: !!(cached && cached.isVerified),
-        lastSyncedAt: globalState.getAuthSyncLastSyncedAt(),
-        mode: snapshot.mode,
-        port: snapshot.port,
-        ownedByThisWindow: snapshot.mode === "local",
-        ownerWindowLabel: snapshot.owner && snapshot.owner.windowLabel,
-        ownerHeartbeatAt: snapshot.owner && snapshot.owner.heartbeatAt,
-        currentWindowLabel: snapshot.currentWindow.windowLabel,
-        hasConflict: snapshot.mode === "conflict" || !!snapshot.conflict,
-        conflictSummary: snapshot.conflict && snapshot.conflict.summary,
     };
 }

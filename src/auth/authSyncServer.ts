@@ -71,6 +71,12 @@ class AuthSyncServer implements vscode.Disposable {
     private readonly windowId: string = crypto.randomBytes(6).toString("hex");
     private readonly startedAt: number = Date.now();
     private readonly controlToken: string = crypto.randomBytes(24).toString("hex");
+    // Fires after the browser extension pushes a fresh auth payload (cookie +
+    // request headers + user agent) and lastSyncedAt is bumped. Lets the status
+    // bar refresh its "Last auth sync" tooltip on every sync, not just on the
+    // sign-in/identity changes that drive `statusChanged`.
+    private readonly onDidSyncEmitter: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
+    public readonly onDidSync: vscode.Event<void> = this.onDidSyncEmitter.event;
 
     public start(): Promise<void> {
         return this.enqueue(() => this.startInternal());
@@ -109,6 +115,7 @@ class AuthSyncServer implements vscode.Disposable {
 
     public dispose(): void {
         void this.stop();
+        this.onDidSyncEmitter.dispose();
     }
 
     private enqueue<T>(operation: () => Promise<T>): Promise<T> {
@@ -426,6 +433,7 @@ class AuthSyncServer implements vscode.Disposable {
             await leetCodeManager.updateSyncedBrowserData(cookie, browserUserAgent, browserRequestHeaders);
         }
         await globalState.setAuthSyncLastSyncedAt(Date.now());
+        this.onDidSyncEmitter.fire();
 
         this.sendJson(res, 200, { ok: true, message: "LeetCode cookie synced." }, true, req);
     }

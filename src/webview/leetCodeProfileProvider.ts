@@ -3,6 +3,7 @@
 
 import * as crypto from "crypto";
 import { commands, ViewColumn } from "vscode";
+import { AUTH_SYNC_CAPTION, IAuthSyncSummary } from "../auth/authSyncSummary";
 import {
     ILeetCodeBeats,
     ILeetCodeDifficultyCount,
@@ -21,22 +22,14 @@ import { ILeetCodeWebviewOption, LeetCodeWebview } from "./LeetCodeWebview";
 // and the client swaps that container's innerHTML in place.
 export type ProfileSectionId = "header" | "about" | "totals" | "languages" | "recent";
 
-// Local cookie/auth-sync state surfaced in the panel's "Sync" card. Gathered by
-// the command (it owns the globalState + authSyncServer singletons) and handed
-// in so this provider stays a pure renderer. All timestamps are Unix ms.
-export interface IProfileSyncStatus {
+// Local cookie/auth-sync state surfaced in the panel's "Session Sync" card. The
+// shared IAuthSyncSummary (label/tone/timestamps) is gathered by the command and
+// joined with the signed-in account fields, so this provider stays a pure
+// renderer and the wording matches the status-bar tooltip.
+export interface IProfileSyncStatus extends IAuthSyncSummary {
     username: string;
     isPremium: boolean;
     isVerified: boolean;
-    lastSyncedAt: number | undefined;
-    mode: string;
-    port: number | undefined;
-    ownedByThisWindow: boolean;
-    ownerWindowLabel: string | undefined;
-    ownerHeartbeatAt: number | undefined;
-    currentWindowLabel: string;
-    hasConflict: boolean;
-    conflictSummary: string | undefined;
 }
 
 // What the panel can paint the instant it opens — no network required. The
@@ -171,7 +164,8 @@ class LeetCodeProfileProvider extends LeetCodeWebview {
                     .identity { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 0.75rem; font-size: 0.9rem; align-items: baseline; }
                     .identity dt { color: var(--vscode-descriptionForeground); white-space: nowrap; }
                     .identity dd { margin: 0; }
-                    .sync-status { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; margin-bottom: 0.85rem; }
+                    .sync-status { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; margin-bottom: 0.25rem; }
+                    .sync-caption { color: var(--vscode-descriptionForeground); font-size: 0.82rem; margin-bottom: 0.85rem; }
                     .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--vscode-descriptionForeground); }
                     .dot.ok { background: #3fb950; }
                     .dot.warn { background: #d29922; }
@@ -199,7 +193,7 @@ class LeetCodeProfileProvider extends LeetCodeWebview {
                 </div>
 
                 <div class="card full" id="card-sync">
-                    <h2>Sync</h2>
+                    <h2>Session Sync</h2>
                     <div id="sec-sync">${syncInner}</div>
                 </div>
 
@@ -387,10 +381,9 @@ function buildTotalsInner(stats: IProfileStats): string {
 }
 
 function buildSyncCard(sync: IProfileSyncStatus): string {
-    const view: { label: string; tone: string } = syncModeView(sync);
     const rows: string[] = [];
 
-    rows.push(`<dt>Last cookie sync</dt><dd>${relativeTimestamp(sync.lastSyncedAt)}</dd>`);
+    rows.push(`<dt>Last auth sync</dt><dd>${relativeTimestamp(sync.lastSyncedAt)}</dd>`);
 
     const account: string[] = [escapeHtml(sync.username || "Unknown")];
     if (sync.isPremium) {
@@ -420,29 +413,11 @@ function buildSyncCard(sync: IProfileSyncStatus): string {
         : "";
 
     return `
-        <div class="sync-status"><span class="dot ${view.tone}"></span>${escapeHtml(view.label)}</div>
+        <div class="sync-status"><span class="dot ${escapeAttribute(sync.tone)}"></span>${escapeHtml(sync.label)}</div>
+        <div class="sync-caption">${escapeHtml(AUTH_SYNC_CAPTION)}</div>
         <dl class="identity">${rows.join("")}</dl>
         ${conflict}
     `;
-}
-
-function syncModeView(sync: IProfileSyncStatus): { label: string; tone: string } {
-    switch (sync.mode) {
-        case "local":
-            return { label: "Syncing in this window", tone: "ok" };
-        case "observer":
-            return { label: "Syncing in another window", tone: "ok" };
-        case "vacant":
-            return { label: "No window is syncing", tone: "warn" };
-        case "stopped":
-            return { label: "Sync server stopped", tone: "warn" };
-        case "conflict":
-            return { label: "Sync port conflict", tone: "bad" };
-        case "disabled":
-            return { label: "Auto cookie sync disabled", tone: "neutral" };
-        default:
-            return { label: sync.mode || "Unknown", tone: "neutral" };
-    }
 }
 
 // Renders a Unix-ms timestamp as a live-updating "x ago" span (the webview's
