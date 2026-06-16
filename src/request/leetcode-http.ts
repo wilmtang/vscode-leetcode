@@ -9,6 +9,9 @@ import { sleep } from "../utils/toolUtils";
 
 const MAX_VERIFY_ATTEMPTS: number = 60;
 const CURL_STATUS_MARKER: string = "\n__LEETCODE_HTTP_STATUS__:";
+// Default per-request timeout so a hung socket cannot stall a refresh (now 30+
+// requests). Callers can override via the axios config's own `timeout`.
+const DEFAULT_TIMEOUT_MS: number = 30000;
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -210,6 +213,7 @@ export async function requestJson<T>(config: AxiosRequestConfig, context: IReque
     let response: AxiosResponse<T>;
     try {
         response = await axios({
+            timeout: DEFAULT_TIMEOUT_MS,
             ...config,
             validateStatus: () => true,
         });
@@ -286,7 +290,8 @@ function executeCurl(config: AxiosRequestConfig): Promise<ICurlResponse> {
         }
 
         const method: string = (config.method || "GET").toString().toUpperCase();
-        const args: string[] = ["-sS", "-L", "--compressed", "-w", `${CURL_STATUS_MARKER}%{http_code}`, "-X", method, url];
+        const timeoutSeconds: number = Math.ceil((typeof config.timeout === "number" && config.timeout > 0 ? config.timeout : DEFAULT_TIMEOUT_MS) / 1000);
+        const args: string[] = ["-sS", "-L", "--compressed", "-m", String(timeoutSeconds), "-w", `${CURL_STATUS_MARKER}%{http_code}`, "-X", method, url];
         const headers: { [key: string]: unknown } = (config.headers || {}) as { [key: string]: unknown };
 
         for (const key of Object.keys(headers)) {

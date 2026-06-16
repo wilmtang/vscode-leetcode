@@ -15,7 +15,7 @@
 | 4 | Preview webview XSS hardening (`'unsafe-inline'` + regex sanitizer) | 🟡 Low | ✅ Fixed |
 | 5 | Inline `$…$` math false positives (currency) | 🟡 Low | ✅ Fixed |
 | 6 | Redundant question-detail fetch when opening a problem | 🟡 Low | ✅ Fixed |
-| 7 | No HTTP request timeout | ⚪ Minor | ⬜ Open |
+| 7 | No HTTP request timeout | ⚪ Minor | ✅ Fixed |
 | 8 | Silent favorites degradation | ⚪ Minor | ⬜ Open |
 | 9 | Empty code body when a language has no snippet | ⚪ Minor | ⬜ Open |
 | 10 | KaTeX CSS path is build-layout-relative | ⚪ Minor | ✅ Acceptable (no action) |
@@ -134,14 +134,16 @@ and `previewProblem` gained a `prefetched?` parameter — it fetches only when n
 detail is supplied. Opening a problem with the webview description is now one fetch
 instead of two.
 
-### 7 — No HTTP request timeout ⚪ *(Open)*
+### 7 — No HTTP request timeout ⚪ *(✅ Fixed)*
 
 **Symptom.** `requestJson` ([leetcode-http.ts](../src/request/leetcode-http.ts))
 issues axios requests with no `timeout`; a hung socket hangs the whole refresh —
 now amplified because a refresh is 30+ requests.
 
-**Fix.** Set a sensible default `timeout` on the axios request (respecting any
-caller-provided value) and a matching `--max-time` on the curl fallback.
+**Fix (done).** `requestJson` now applies a `DEFAULT_TIMEOUT_MS` (30s) axios
+`timeout` (overridable per call), and the curl fallback passes a matching
+`-m <seconds>` (`--max-time`). A stuck request now fails fast instead of hanging
+the whole refresh.
 
 ### 8 — Silent favorites degradation ⚪ *(Open)*
 
@@ -181,3 +183,4 @@ fallback). No change needed — recorded for awareness.
 | 2026-06-16 | *(this branch)* | Fix #4: nonce the preview's inline script; drop `script-src 'unsafe-inline'`. |
 | 2026-06-16 | *(this branch)* | Fix #5: currency guard on the inline `$…$` math matcher (+ regression test). |
 | 2026-06-16 | *(this branch)* | Fix #6: reuse the generated file's question detail for the webview preview (one fetch, not two). |
+| 2026-06-16 | *(this branch)* | Fix #7: 30s default request timeout on axios + matching curl `--max-time`. |
