@@ -23,6 +23,18 @@ export class LeetCodeNode {
         return this.data.id;
     }
 
+    public get questionFrontendId(): string {
+        return this.data.questionFrontendId || this.data.id;
+    }
+
+    public get questionId(): string | undefined {
+        return this.data.questionId;
+    }
+
+    public get titleSlug(): string | undefined {
+        return this.data.titleSlug;
+    }
+
     public get passRate(): string {
         return this.data.passRate;
     }

@@ -28,7 +28,7 @@ requests using synced browser cookies, then remove the CLI dependency safely.
 | — | Browser dev-mode + live integration harness | ✅ Done (`5caee5f`) |
 | — | E2E sanity tests + `nameTranslated` fix | ✅ Done (uncommitted) |
 | 1 | Consolidate the HTTP layer | ✅ Done (`39ce44b`) |
-| 2 | Problem identity model | ⬜ Not started |
+| 2 | Problem identity model | ✅ Done |
 | 3 | Wire problem list + vendor companies/tags | ⬜ Not started |
 | 4 | Description + template generation (+ KaTeX, slug hardening) | ⬜ Not started |
 | 5 | Auth/login off the CLI | ⬜ Not started |
@@ -173,12 +173,18 @@ coupling and startup dependency.
   `getQuestionDetail` lite-vs-full split deliberately and documented it.
 - **Done:** every direct call goes through one transport. Committed in `39ce44b`.
 
-### Phase 2 — Problem identity model ⬜ *(keystone — first among migrations)*
-- Extend `IProblem` with `questionFrontendId`, `questionId?`, `titleSlug?`; keep
-  `id` = frontend id. Update `defaultProblem`, `LeetCodeNode` getters, and
-  `problemUtils` file↔node resolution.
-- **Done when:** explorer renders unchanged; `${...}` placeholders and file
-  naming unchanged; nothing infers slug from the display title.
+### Phase 2 — Problem identity model ✅ *(keystone — first among migrations)*
+- Extended `IProblem` with `questionFrontendId`, `questionId?`, `titleSlug?`; kept
+  `id` = frontend id (the user-facing display id) for backwards compatibility.
+  Updated `defaultProblem` and added `LeetCodeNode` getters
+  (`questionFrontendId`/`questionId`/`titleSlug`). `problemUtils` file↔node
+  resolution already keys off the frontend id (`@lc id=`), so it was left intact.
+- The CLI `list.ts` path now stamps `questionFrontendId = id`; `questionId` and
+  `titleSlug` stay `undefined` until the API list lands in Phase 3.
+- **Done:** explorer renders unchanged; `${...}` placeholders and file naming
+  unchanged; the identity fields are now available for the migrations downstream
+  (Phase 4 slug embed, Phase 7 favorites) instead of re-deriving a slug from the
+  display title. Compiles; offline test net green (15 tests).
 
 ### Phase 3 — Wire problem list + vendor companies/tags ⬜
 - Swap `list.ts` to `leetcode-api.listProblems()`; delete the regex and
@@ -268,3 +274,4 @@ ground rules, never fall back after a confirmed Cloudflare/LeetCode rejection.
 | 2026-06-15 | `39ce44b` | Phase 0 (offline test net) + Phase 1 (HTTP consolidation onto `requestJson`; deleted `query-user-data.ts` + `httpUtils.ts`). |
 | 2026-06-15 | `5caee5f` | Browser dev-mode capture + live integration harness with local-only secret protection. |
 | 2026-06-15 | *(uncommitted)* | E2E sanity tests; fixed the `.com` `nameTranslated` HTTP 400 bug; documented the `/session/` 405 deprecation (Phase 6). |
+| 2026-06-15 | *(this branch)* | Phase 2: extended `IProblem`/`defaultProblem`/`LeetCodeNode` with the `questionFrontendId`/`questionId`/`titleSlug` identity model. |

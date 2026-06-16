@@ -25,6 +25,7 @@ export async function listProblems(): Promise<IProblem[]> {
                 const id: string = match[4].trim();
                 problems.push({
                     id,
+                    questionFrontendId: id,
                     isFavorite: match[1].trim().length > 0,
                     locked: match[2].trim().length > 0,
                     state: parseProblemState(match[3]),

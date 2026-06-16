@@ -76,6 +76,14 @@ export interface IProblem {
     locked: boolean;
     state: ProblemState;
     id: string;
+    // Canonical problem identity. `id` stays the user-facing frontend id (e.g.
+    // "1") for backwards compatibility; these carry the unambiguous identifiers
+    // the direct API needs so nothing has to re-derive a slug from the display
+    // title. `questionId` (internal numeric id) and `titleSlug` are optional
+    // because the legacy CLI list path cannot supply them.
+    questionFrontendId: string;
+    questionId?: string;
+    titleSlug?: string;
     name: string;
     difficulty: string;
     passRate: string;
@@ -88,6 +96,9 @@ export const defaultProblem: IProblem = {
     locked: false,
     state: ProblemState.Unknown,
     id: "",
+    questionFrontendId: "",
+    questionId: undefined,
+    titleSlug: undefined,
     name: "",
     difficulty: "",
     passRate: "",
