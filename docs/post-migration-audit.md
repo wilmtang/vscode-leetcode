@@ -11,7 +11,7 @@
 |---|---|---|---|
 | 1 | Whole catalog re-fetched on every tree refresh (star / sort / startup) | 🔴 High | ✅ Fixed |
 | 2 | Favorites & solutions broken on `leetcode.cn` | 🟠 Medium | 📄 Documented — won't fix (PRs welcome) |
-| 3 | Unbounded favorites pagination loop | 🟠 Medium | ⬜ Open |
+| 3 | Unbounded favorites pagination loop | 🟠 Medium | ✅ Fixed |
 | 4 | Preview webview XSS hardening (`'unsafe-inline'` + regex sanitizer) | 🟡 Low | ⬜ Open |
 | 5 | Inline `$…$` math false positives (currency) | 🟡 Low | ⬜ Open |
 | 6 | Redundant question-detail fetch when opening a problem | 🟡 Low | ⬜ Open |
@@ -77,7 +77,7 @@ More broadly, the direct-request paths added during the migration were validated
 only against `leetcode.com`; other CN endpoints (problem detail extras, etc.) are
 inherited and untested.
 
-### 3 — Unbounded favorites pagination loop 🟠 *(Open)*
+### 3 — Unbounded favorites pagination loop 🟠 *(✅ Fixed)*
 
 **Symptom / risk.** `getFavoriteProblemSlugs()` in
 [leetcode-api.ts](../src/request/leetcode-api.ts) loops on the server's `hasMore`
@@ -87,7 +87,9 @@ probing showed the server ignores the `limit` argument, so if a large favorites
 list ever returns `hasMore: true` while `skip` is not honored, the loop spins
 forever. Low probability, but inconsistent and unsafe.
 
-**Fix.** Bound the loop by `totalLength` and/or a hard max-iteration cap.
+**Fix (done).** The loop now stops once `skip >= totalLength` and is wrapped in a
+hard `FAVORITE_LIST_MAX_PAGES` (50 pages → 5,000) backstop, so it can no longer
+spin even if the server reports `hasMore: true` without honoring `skip`.
 
 ### 4 — Preview webview XSS hardening 🟡 *(Open)*
 
@@ -168,3 +170,4 @@ fallback). No change needed — recorded for awareness.
 |---|---|---|
 | 2026-06-16 | *(this commit)* | Documented the post-migration audit findings. |
 | 2026-06-16 | *(this branch)* | Fix #1: cache the catalog; star/sort soft-refresh; gate redundant status emits; de-dup overlapping fetches. |
+| 2026-06-16 | *(this branch)* | Fix #3: bound the favorites pagination loop by `totalLength` + a 50-page backstop. |

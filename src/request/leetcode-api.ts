@@ -251,6 +251,8 @@ export async function fetchUserStatus(): Promise<UserDataType> {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_FAVORITE_NAME: string = "Favorite";
+// Hard backstop for the favorite-list pagination loop (100 per page → 5,000).
+const FAVORITE_LIST_MAX_PAGES: number = 50;
 
 interface IFavoritesListsData {
     favoritesLists?: {
@@ -313,7 +315,9 @@ export async function getFavoriteProblemSlugs(): Promise<Set<string>> {
     const cookie: string = getRequiredCookie();
     let skip: number = 0;
     let hasMore: boolean = true;
-    while (hasMore) {
+    // Bound the loop: the server has been observed to ignore `limit`, so guard
+    // against a `hasMore: true` + unhonored-`skip` combination spinning forever.
+    for (let page: number = 0; hasMore && page < FAVORITE_LIST_MAX_PAGES; page++) {
         const response: IGraphqlResponse<IFavoriteQuestionListData> = await requestJson<IGraphqlResponse<IFavoriteQuestionListData>>({
             method: "POST",
             url: getUrl("graphql"),
@@ -345,7 +349,8 @@ export async function getFavoriteProblemSlugs(): Promise<Set<string>> {
             break;
         }
         skip += questions.length;
-        hasMore = !!(list && list.hasMore);
+        const total: number = (list && list.totalLength) || 0;
+        hasMore = !!(list && list.hasMore) && (total <= 0 || skip < total);
     }
 
     return slugs;
