@@ -778,6 +778,8 @@
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./",
         "test": "tsc -p ./tsconfig.test.json && mocha",
+        "test:integration": "tsc -p ./tsconfig.test.json && mocha --config .mocharc.integration.json",
+        "setup:git-hooks": "git config core.hooksPath scripts/git-hooks",
         "lint": "tslint --project tsconfig.json -e src/*.d.ts -t verbose",
         "auth-sync:dev:vscode": "npm run compile && node scripts/start-vscode-auth-sync-dev.js",
         "auth-sync:install:vscode": "npm run compile && node scripts/install-vscode-auth-sync-extension.js",

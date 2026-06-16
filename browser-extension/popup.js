@@ -8,6 +8,11 @@ const expireNowButton = document.getElementById("expire-now");
 const cookieOnlySection = document.getElementById("cookie-only-section");
 const cookieOnlySyncButton = document.getElementById("cookie-only-sync");
 const optionsButton = document.getElementById("open-options");
+const devSection = document.getElementById("dev-section");
+const devCaptureStatus = document.getElementById("dev-capture-status");
+const copyFixtureButton = document.getElementById("copy-fixture");
+const captureNowButton = document.getElementById("capture-now");
+const clearFixtureButton = document.getElementById("clear-fixture");
 
 let currentSettings = null;
 
@@ -34,6 +39,49 @@ optionsButton.addEventListener("click", () => {
     chrome.runtime.openOptionsPage();
 });
 
+copyFixtureButton.addEventListener("click", async () => {
+    setStatus("Preparing test fixture...", "");
+    let result = await sendMessage({ type: "getDevPayload" });
+    if (!result.ok || !result.payload) {
+        result = await sendMessage({ type: "captureDevPayloadNow" });
+        if (!result.ok) {
+            setStatus(result.error, "error");
+            return;
+        }
+    }
+
+    const json = JSON.stringify(result.payload, null, 2);
+    const copied = await copyText(json);
+    setStatus(
+        copied
+            ? "Test fixture copied. Paste into src/test/.secrets/leetcode-auth.local.json in VS Code."
+            : "Could not copy to clipboard. Open the console to copy it manually.",
+        copied ? "success" : "error"
+    );
+    if (!copied) {
+        console.info("[leetcode-auth-sync] Test fixture:\n" + json);
+    }
+    await refreshDevSection();
+});
+
+captureNowButton.addEventListener("click", async () => {
+    setStatus("Capturing payload...", "");
+    const result = await sendMessage({ type: "captureDevPayloadNow" });
+    setStatus(
+        result.ok
+            ? "Captured cookie payload. Refresh a leetcode.com page to also capture browser headers."
+            : result.error,
+        result.ok ? "success" : "error"
+    );
+    await refreshDevSection();
+});
+
+clearFixtureButton.addEventListener("click", async () => {
+    await sendMessage({ type: "clearDevPayload" });
+    setStatus("Captured payload cleared.", "success");
+    await refreshDevSection();
+});
+
 if (chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener((changes, areaName) => {
         if (areaName === "local" && changes.showCookieOnlyButton) {
@@ -58,6 +106,57 @@ function renderSettings() {
     cookieOnlySection.hidden = currentSettings.showCookieOnlyButton !== true;
     cookieOnlySyncButton.hidden = currentSettings.showCookieOnlyButton !== true;
     renderLastIssue(currentSettings);
+    void refreshDevSection();
+}
+
+async function refreshDevSection() {
+    if (!currentSettings || currentSettings.devMode !== true) {
+        devSection.hidden = true;
+        return;
+    }
+
+    devSection.hidden = false;
+    const result = await sendMessage({ type: "getDevPayload" });
+    renderDevCaptureStatus(result);
+}
+
+function renderDevCaptureStatus(result) {
+    if (!result || !result.ok || !result.payload) {
+        devCaptureStatus.textContent = "No payload captured yet. Refresh a leetcode.com page, or click Capture now.";
+        clearFixtureButton.disabled = true;
+        return;
+    }
+
+    const headerCount = result.payload.requestHeaders ? Object.keys(result.payload.requestHeaders).length : 0;
+    const when = result.capturedAt ? formatRelativeTime(result.capturedAt) : "just now";
+    devCaptureStatus.textContent = `Captured ${when}: cookie + ${headerCount} browser header(s).`;
+    clearFixtureButton.disabled = false;
+}
+
+async function copyText(text) {
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch (error) {
+        // Fall through to the execCommand fallback below.
+    }
+
+    try {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "absolute";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(textarea);
+        return ok;
+    } catch (error) {
+        return false;
+    }
 }
 
 function renderLastIssue(settings) {

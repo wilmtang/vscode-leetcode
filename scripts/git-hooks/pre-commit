@@ -1,0 +1,45 @@
+#!/usr/bin/env node
+"use strict";
+
+// Defense-in-depth guard against committing the local LeetCode auth fixture or
+// any cookie containing a LEETCODE_SESSION token. Opt in per-clone with:
+//   npm run setup:git-hooks
+// Bypass a false positive with: git commit --no-verify
+
+const { execSync } = require("child_process");
+
+function stagedDiff(args) {
+    try {
+        return execSync(`git diff --cached ${args}`, { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+    } catch (error) {
+        return "";
+    }
+}
+
+const offenders = [];
+
+const stagedNames = stagedDiff("--name-only")
+    .split("\n")
+    .map((name) => name.trim())
+    .filter(Boolean);
+
+for (const name of stagedNames) {
+    if (name.includes(".secrets/") || name.endsWith(".local.json")) {
+        offenders.push(`staged file looks local-only: ${name}`);
+    }
+}
+
+if (/LEETCODE_SESSION=/.test(stagedDiff(""))) {
+    offenders.push("staged content contains a LEETCODE_SESSION token");
+}
+
+if (offenders.length > 0) {
+    console.error("\n✖ Commit blocked by scripts/git-hooks/pre-commit:");
+    for (const offender of offenders) {
+        console.error(`  - ${offender}`);
+    }
+    console.error("\nThis looks like a local LeetCode auth secret. Unstage it before committing:");
+    console.error("  git restore --staged <file>");
+    console.error("If this is a false positive, re-run with: git commit --no-verify\n");
+    process.exit(1);
+}

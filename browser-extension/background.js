@@ -4,10 +4,19 @@ const DEFAULTS = {
     secret: "",
     cooldownMinutes: 30,
     showCookieOnlyButton: false,
+    devMode: false,
     lastSyncAt: 0,
     lastSyncError: "",
     lastSyncErrorAt: 0,
     lastSyncErrorReason: "",
+};
+
+// Developer-mode capture. Only written when devMode is enabled, so the login
+// secret is never persisted at rest for normal users. These keys live outside
+// DEFAULTS because they are captured runtime data, not user settings.
+const DEV_CAPTURE_KEYS = {
+    devCapturedPayload: null,
+    devCapturedAt: 0,
 };
 
 const api = typeof chrome !== "undefined" ? chrome : browser;
@@ -24,6 +33,7 @@ async function getSettings() {
         secret: typeof stored.secret === "string" ? stored.secret : "",
         cooldownMinutes: normalizeCooldownMinutes(stored.cooldownMinutes),
         showCookieOnlyButton: stored.showCookieOnlyButton === true,
+        devMode: stored.devMode === true,
         lastSyncAt: normalizeTimestamp(stored.lastSyncAt),
         lastSyncError: typeof stored.lastSyncError === "string" ? stored.lastSyncError : "",
         lastSyncErrorAt: normalizeTimestamp(stored.lastSyncErrorAt),
@@ -40,7 +50,13 @@ async function saveSettings(settings) {
         secret: typeof settings.secret === "string" ? settings.secret : "",
         cooldownMinutes: normalizeCooldownMinutes(settings.cooldownMinutes),
         showCookieOnlyButton: settings.showCookieOnlyButton === true,
+        devMode: settings.devMode === true,
     });
+
+    if (settings.devMode !== true) {
+        // Leaving dev mode wipes any captured login payload from storage.
+        await storageSet({ devCapturedPayload: null, devCapturedAt: 0 });
+    }
 }
 
 async function expireSyncCooldown(reason = "manual") {
@@ -145,6 +161,15 @@ async function syncNowInternal(reason, cookieOverride, requestHeadersOverride) {
         return recordSyncFailure(loginCookieStatus.error, syncReason, "missing-session-cookie", settings);
     }
 
+    const replayableRequestHeaders = getReplayableRequestHeaders(requestHeadersOverride);
+
+    if (settings.devMode) {
+        // Persist the exact data we send so a developer can copy it from the
+        // popup into the VS Code integration-test fixture. Captured before the
+        // fetch so it still works when VS Code is not running.
+        await storeDevPayload(cookie, replayableRequestHeaders);
+    }
+
     const headers = {
         "Content-Type": "application/json",
     };
@@ -161,7 +186,7 @@ async function syncNowInternal(reason, cookieOverride, requestHeadersOverride) {
             headers,
             body: JSON.stringify({
                 cookie,
-                requestHeaders: getReplayableRequestHeaders(requestHeadersOverride),
+                requestHeaders: replayableRequestHeaders,
                 source: "browser-extension",
                 reason: syncReason,
                 userAgent: getBrowserUserAgent(),
@@ -417,6 +442,55 @@ function getBrowserUserAgent() {
         : "";
 }
 
+async function storeDevPayload(cookie, requestHeaders) {
+    await storageSet({
+        devCapturedPayload: buildDevFixture(cookie, requestHeaders),
+        devCapturedAt: Date.now(),
+    });
+}
+
+function buildDevFixture(cookie, requestHeaders) {
+    return {
+        endpoint: "leetcode",
+        cookie,
+        userAgent: getBrowserUserAgent(),
+        requestHeaders: requestHeaders && typeof requestHeaders === "object" ? requestHeaders : {},
+    };
+}
+
+async function getDevPayload() {
+    const stored = await storageGet(DEV_CAPTURE_KEYS);
+    return {
+        ok: true,
+        payload: stored.devCapturedPayload || null,
+        capturedAt: normalizeTimestamp(stored.devCapturedAt),
+    };
+}
+
+async function captureDevPayloadNow() {
+    const settings = await getSettings();
+    if (!settings.devMode) {
+        return { ok: false, error: "Enable Developer mode in the extension settings first." };
+    }
+
+    const cookie = await getLeetCodeCookieHeader();
+    const loginCookieStatus = getLeetCodeLoginCookieStatus(cookie);
+    if (!loginCookieStatus.ok) {
+        return { ok: false, error: loginCookieStatus.error };
+    }
+
+    // Cookie-only capture (no live browser request headers). Refresh a
+    // leetcode.com page to capture the full Cloudflare/browser headers through
+    // the automatic XHR sync instead.
+    await storeDevPayload(cookie, {});
+    return { ok: true, payload: buildDevFixture(cookie, {}), capturedAt: Date.now() };
+}
+
+async function clearDevPayload() {
+    await storageSet({ devCapturedPayload: null, devCapturedAt: 0 });
+    return { ok: true };
+}
+
 function getReplayableRequestHeaders(requestHeaders) {
     const headers = {};
 
@@ -534,6 +608,27 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.type === "saveSettings") {
         saveSettings(message.settings || {}).then(() => sendResponse({ ok: true }), (error) => {
+            sendResponse({ ok: false, error: error.message || String(error) });
+        });
+        return true;
+    }
+
+    if (message.type === "getDevPayload") {
+        getDevPayload().then(sendResponse, (error) => {
+            sendResponse({ ok: false, error: error.message || String(error) });
+        });
+        return true;
+    }
+
+    if (message.type === "captureDevPayloadNow") {
+        captureDevPayloadNow().then(sendResponse, (error) => {
+            sendResponse({ ok: false, error: error.message || String(error) });
+        });
+        return true;
+    }
+
+    if (message.type === "clearDevPayload") {
+        clearDevPayload().then(sendResponse, (error) => {
             sendResponse({ ok: false, error: error.message || String(error) });
         });
         return true;

@@ -1,0 +1,10 @@
+{
+    "endpoint": "leetcode",
+    "cookie": "LEETCODE_SESSION=PASTE_YOUR_SESSION_JWT_HERE; csrftoken=PASTE_YOUR_CSRF_TOKEN_HERE",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+    "requestHeaders": {
+        "accept": "*/*",
+        "accept-language": "en-US,en;q=0.9",
+        "sec-ch-ua-platform": "\"macOS\""
+    }
+}

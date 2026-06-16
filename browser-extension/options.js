@@ -3,6 +3,7 @@ const portInput = document.getElementById("port");
 const secretInput = document.getElementById("secret");
 const cooldownMinutesInput = document.getElementById("cooldown-minutes");
 const showCookieOnlyButtonInput = document.getElementById("show-cookie-only-button");
+const devModeInput = document.getElementById("dev-mode");
 const statusElement = document.getElementById("status");
 const form = document.getElementById("options-form");
 const syncButton = document.getElementById("sync-now");
@@ -24,6 +25,16 @@ showCookieOnlyButtonInput.addEventListener("change", async () => {
     );
 });
 
+devModeInput.addEventListener("change", async () => {
+    await saveSettings(false);
+    setStatus(
+        devModeInput.checked
+            ? "Developer mode enabled. Refresh a leetcode.com page, then copy the test fixture from the popup."
+            : "Developer mode disabled. Captured payload cleared.",
+        "success"
+    );
+});
+
 syncButton.addEventListener("click", async () => {
     await saveSettings(false);
     setStatus("Sending cookies only...", "");
@@ -38,6 +49,7 @@ async function loadSettings() {
     secretInput.value = settings.secret || "";
     cooldownMinutesInput.value = settings.cooldownMinutes || 30;
     showCookieOnlyButtonInput.checked = settings.showCookieOnlyButton === true;
+    devModeInput.checked = settings.devMode === true;
 }
 
 async function saveSettings(showSaved = true) {
@@ -49,6 +61,7 @@ async function saveSettings(showSaved = true) {
             secret: secretInput.value,
             cooldownMinutes: cooldownMinutesInput.value,
             showCookieOnlyButton: showCookieOnlyButtonInput.checked,
+            devMode: devModeInput.checked,
         },
     });
 

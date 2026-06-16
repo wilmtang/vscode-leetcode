@@ -63,5 +63,9 @@ out
 .vscode-test
 web-ext-artifacts/
 
+# Local-only LeetCode auth fixtures for integration tests — never commit
+src/test/.secrets/
+*.local.json
+
 # Mac
 .DS_Store

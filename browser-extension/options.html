@@ -46,6 +46,14 @@
                 </span>
             </label>
 
+            <label class="check-row">
+                <input id="dev-mode" type="checkbox">
+                <span>
+                    <strong>Developer mode</strong>
+                    <small>Auto-saves this preference. Captures the exact cookie/header payload sent to VS Code so you can copy it from the popup into a local integration-test fixture. <strong>The captured payload contains your LeetCode login secrets</strong> — keep it local. Turning this off wipes the captured payload.</small>
+                </span>
+            </label>
+
             <div class="actions">
                 <button type="submit">Save</button>
                 <button id="sync-now" type="button" class="secondary">Cookie-only sync</button>

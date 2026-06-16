@@ -41,6 +41,16 @@
             <p>Sends cookies immediately. It cannot capture Cloudflare or browser request headers, so it may not help VS Code Test.</p>
         </section>
 
+        <section id="dev-section" class="sync-mode" hidden>
+            <h2>Developer</h2>
+            <p id="dev-capture-status">No payload captured yet. Refresh a leetcode.com page, or click Capture now.</p>
+            <div class="actions">
+                <button id="copy-fixture" type="button">Copy test fixture</button>
+                <button id="capture-now" type="button" class="secondary">Capture now</button>
+                <button id="clear-fixture" type="button" class="secondary">Clear</button>
+            </div>
+        </section>
+
         <div class="actions">
             <button id="expire-now" type="button">Expire now</button>
             <button id="cookie-only-sync" type="button" hidden>Cookie-only sync</button>
