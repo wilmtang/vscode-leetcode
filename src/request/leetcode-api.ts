@@ -157,6 +157,102 @@ interface IUserStatusData {
     userStatus?: UserDataType;
 }
 
+// ---------------------------------------------------------------------------
+// User profile (status bar / "personal info" panel)
+//
+// Public-profile aggregate that backs the leetcode.com/u/<user>/ page and the
+// /progress/ dashboard. Composed from four GraphQL queries: userPublicProfile
+// (ranking, real name, country/company), userProblemsSolved (catalog totals
+// and AC counts per difficulty plus beats %), recentAcSubmissions (last N
+// Accepted), and languageStats (solved-by-language). The matcher keeps each
+// piece independent so a single transient failure does not collapse the panel.
+// ---------------------------------------------------------------------------
+
+export type Difficulty = "All" | "Easy" | "Medium" | "Hard";
+
+export interface ILeetCodeDifficultyCount {
+    difficulty: Difficulty;
+    count: number;
+}
+
+export interface ILeetCodeBeats {
+    difficulty: "Easy" | "Medium" | "Hard";
+    percentage: number;
+}
+
+export interface ILeetCodeLanguageCount {
+    languageName: string;
+    problemsSolved: number;
+}
+
+export interface ILeetCodeRecentSubmission {
+    id: string;
+    title: string;
+    titleSlug: string;
+    // Unix seconds (LeetCode returns the timestamp as a string).
+    timestamp: number;
+}
+
+export interface ILeetCodeUserProfile {
+    username: string;
+    realName: string;
+    avatar: string;
+    ranking: number | undefined;
+    countryName: string;
+    company: string;
+    school: string;
+    reputation: number;
+    // Catalog size by difficulty (e.g. 3,962 problems total). Empty if LeetCode
+    // omits it (rare; older accounts).
+    totalsByDifficulty: ILeetCodeDifficultyCount[];
+    // Solved-AC counts by difficulty. Always contains an "All" entry, even when
+    // LeetCode omits it (computed from the three difficulties).
+    solvedByDifficulty: ILeetCodeDifficultyCount[];
+    beatsByDifficulty: ILeetCodeBeats[];
+    languageProblemCount: ILeetCodeLanguageCount[];
+    recentAcSubmissions: ILeetCodeRecentSubmission[];
+}
+
+interface IUserPublicProfileData {
+    matchedUser?: {
+        username?: string;
+        profile?: {
+            ranking?: number;
+            userAvatar?: string;
+            realName?: string;
+            countryName?: string;
+            company?: string;
+            school?: string;
+            reputation?: number;
+        };
+    };
+}
+
+interface IUserProblemsSolvedData {
+    allQuestionsCount?: Array<{ difficulty?: string; count?: number }>;
+    matchedUser?: {
+        problemsSolvedBeatsStats?: Array<{ difficulty?: string; percentage?: number }>;
+        submitStatsGlobal?: {
+            acSubmissionNum?: Array<{ difficulty?: string; count?: number }>;
+        };
+    };
+}
+
+interface IRecentAcSubmissionsData {
+    recentAcSubmissionList?: Array<{
+        id?: string;
+        title?: string;
+        titleSlug?: string;
+        timestamp?: string | number;
+    }>;
+}
+
+interface ILanguageStatsData {
+    matchedUser?: {
+        languageProblemCount?: Array<{ languageName?: string; problemsSolved?: number }>;
+    };
+}
+
 export async function listProblems(options: IListProblemsOptions = {}): Promise<ILeetCodeProblem[]> {
     const cookie: string = getRequiredCookie();
 
@@ -303,6 +399,277 @@ export async function fetchUserStatus(): Promise<UserDataType> {
     }
 
     return userStatus;
+}
+
+// Aggregates the four public-profile queries the leetcode.com/u/<user>/ page
+// fires. Each piece is fetched in parallel and any single failure degrades to
+// an empty section instead of failing the whole panel.
+export async function fetchUserProfile(username: string): Promise<ILeetCodeUserProfile> {
+    if (!username) {
+        throw new DirectApiUnsupportedError("Cannot fetch a LeetCode profile without a username.");
+    }
+
+    const cookie: string = getRequiredCookie();
+    const referer: string = `${getUrl("base")}/u/${encodeURIComponent(username)}/`;
+
+    const [publicProfile, solved, recent, languages] = await Promise.all([
+        fetchUserPublicProfile(username, cookie, referer).catch((error: Error) => {
+            leetCodeChannel.appendLine(`[profile] userPublicProfile failed: ${error.message}`);
+            return undefined;
+        }),
+        fetchUserProblemsSolved(username, cookie, referer).catch((error: Error) => {
+            leetCodeChannel.appendLine(`[profile] userProblemsSolved failed: ${error.message}`);
+            return undefined;
+        }),
+        fetchRecentAcSubmissions(username, cookie, referer, 15).catch((error: Error) => {
+            leetCodeChannel.appendLine(`[profile] recentAcSubmissions failed: ${error.message}`);
+            return undefined;
+        }),
+        fetchLanguageStats(username, cookie, referer).catch((error: Error) => {
+            leetCodeChannel.appendLine(`[profile] languageStats failed: ${error.message}`);
+            return undefined;
+        }),
+    ]);
+
+    return mapUserProfile({
+        username,
+        publicProfile,
+        solved,
+        recent,
+        languages,
+    });
+}
+
+async function fetchUserPublicProfile(username: string, cookie: string, referer: string): Promise<IUserPublicProfileData> {
+    const response: IGraphqlResponse<IUserPublicProfileData> = await requestJson<IGraphqlResponse<IUserPublicProfileData>>({
+        method: "POST",
+        url: getUrl("graphql"),
+        headers: createHeaders(cookie, referer),
+        data: {
+            query: [
+                "query userPublicProfile($username: String!) {",
+                "  matchedUser(username: $username) {",
+                "    username",
+                "    profile {",
+                "      ranking",
+                "      userAvatar",
+                "      realName",
+                "      countryName",
+                "      company",
+                "      school",
+                "      reputation",
+                "    }",
+                "  }",
+                "}",
+            ].join("\n"),
+            variables: { username },
+            operationName: "userPublicProfile",
+        },
+    }, { label: "user public profile" });
+    assertNoGraphqlErrors(response, "user public profile");
+    return response.data || {};
+}
+
+async function fetchUserProblemsSolved(username: string, cookie: string, referer: string): Promise<IUserProblemsSolvedData> {
+    const response: IGraphqlResponse<IUserProblemsSolvedData> = await requestJson<IGraphqlResponse<IUserProblemsSolvedData>>({
+        method: "POST",
+        url: getUrl("graphql"),
+        headers: createHeaders(cookie, referer),
+        data: {
+            query: [
+                "query userProblemsSolved($username: String!) {",
+                "  allQuestionsCount { difficulty count }",
+                "  matchedUser(username: $username) {",
+                "    problemsSolvedBeatsStats { difficulty percentage }",
+                "    submitStatsGlobal { acSubmissionNum { difficulty count } }",
+                "  }",
+                "}",
+            ].join("\n"),
+            variables: { username },
+            operationName: "userProblemsSolved",
+        },
+    }, { label: "user problems solved" });
+    assertNoGraphqlErrors(response, "user problems solved");
+    return response.data || {};
+}
+
+async function fetchRecentAcSubmissions(username: string, cookie: string, referer: string, limit: number): Promise<IRecentAcSubmissionsData> {
+    const response: IGraphqlResponse<IRecentAcSubmissionsData> = await requestJson<IGraphqlResponse<IRecentAcSubmissionsData>>({
+        method: "POST",
+        url: getUrl("graphql"),
+        headers: createHeaders(cookie, referer),
+        data: {
+            query: [
+                "query recentAcSubmissions($username: String!, $limit: Int!) {",
+                "  recentAcSubmissionList(username: $username, limit: $limit) {",
+                "    id",
+                "    title",
+                "    titleSlug",
+                "    timestamp",
+                "  }",
+                "}",
+            ].join("\n"),
+            variables: { username, limit },
+            operationName: "recentAcSubmissions",
+        },
+    }, { label: "recent AC submissions" });
+    assertNoGraphqlErrors(response, "recent AC submissions");
+    return response.data || {};
+}
+
+async function fetchLanguageStats(username: string, cookie: string, referer: string): Promise<ILanguageStatsData> {
+    const response: IGraphqlResponse<ILanguageStatsData> = await requestJson<IGraphqlResponse<ILanguageStatsData>>({
+        method: "POST",
+        url: getUrl("graphql"),
+        headers: createHeaders(cookie, referer),
+        data: {
+            query: [
+                "query languageStats($username: String!) {",
+                "  matchedUser(username: $username) {",
+                "    languageProblemCount { languageName problemsSolved }",
+                "  }",
+                "}",
+            ].join("\n"),
+            variables: { username },
+            operationName: "languageStats",
+        },
+    }, { label: "language stats" });
+    assertNoGraphqlErrors(response, "language stats");
+    return response.data || {};
+}
+
+export interface IUserProfileRawInputs {
+    username: string;
+    publicProfile?: IUserPublicProfileData;
+    solved?: IUserProblemsSolvedData;
+    recent?: IRecentAcSubmissionsData;
+    languages?: ILanguageStatsData;
+}
+
+// Combines the four raw GraphQL payloads into a single, always-shaped object.
+// Exported so the unit tests (and any future caller that pre-fetches the pieces
+// in parallel) can exercise the mapping without touching the network.
+export function mapUserProfile(inputs: IUserProfileRawInputs): ILeetCodeUserProfile {
+    const profile = (inputs.publicProfile && inputs.publicProfile.matchedUser && inputs.publicProfile.matchedUser.profile) || {};
+    const username: string = (inputs.publicProfile && inputs.publicProfile.matchedUser && inputs.publicProfile.matchedUser.username) || inputs.username;
+
+    const totalsByDifficulty: ILeetCodeDifficultyCount[] = mapDifficultyCounts((inputs.solved && inputs.solved.allQuestionsCount) || []);
+
+    const rawAcCounts: ILeetCodeDifficultyCount[] = mapDifficultyCounts(
+        (inputs.solved && inputs.solved.matchedUser && inputs.solved.matchedUser.submitStatsGlobal && inputs.solved.matchedUser.submitStatsGlobal.acSubmissionNum) || [],
+    );
+    const solvedByDifficulty: ILeetCodeDifficultyCount[] = ensureAllAggregate(rawAcCounts);
+
+    const beatsByDifficulty: ILeetCodeBeats[] = ((inputs.solved && inputs.solved.matchedUser && inputs.solved.matchedUser.problemsSolvedBeatsStats) || [])
+        .map((entry: { difficulty?: string; percentage?: number }): ILeetCodeBeats | undefined => {
+            const difficulty: "Easy" | "Medium" | "Hard" | undefined = mapBeatsDifficulty(entry.difficulty);
+            if (!difficulty) {
+                return undefined;
+            }
+            return {
+                difficulty,
+                percentage: typeof entry.percentage === "number" ? entry.percentage : 0,
+            };
+        })
+        .filter((entry: ILeetCodeBeats | undefined): entry is ILeetCodeBeats => entry !== undefined);
+
+    const languageProblemCount: ILeetCodeLanguageCount[] = ((inputs.languages && inputs.languages.matchedUser && inputs.languages.matchedUser.languageProblemCount) || [])
+        .map((entry: { languageName?: string; problemsSolved?: number }): ILeetCodeLanguageCount => ({
+            languageName: entry.languageName || "Unknown",
+            problemsSolved: typeof entry.problemsSolved === "number" ? entry.problemsSolved : 0,
+        }))
+        .filter((entry: ILeetCodeLanguageCount) => entry.problemsSolved > 0)
+        .sort((left: ILeetCodeLanguageCount, right: ILeetCodeLanguageCount) => right.problemsSolved - left.problemsSolved);
+
+    const recentAcSubmissions: ILeetCodeRecentSubmission[] = ((inputs.recent && inputs.recent.recentAcSubmissionList) || [])
+        .map((entry: { id?: string; title?: string; titleSlug?: string; timestamp?: string | number }): ILeetCodeRecentSubmission => ({
+            id: entry.id || "",
+            title: entry.title || "",
+            titleSlug: entry.titleSlug || "",
+            timestamp: normalizeTimestamp(entry.timestamp),
+        }))
+        .filter((entry: ILeetCodeRecentSubmission) => entry.title.length > 0);
+
+    return {
+        username,
+        realName: profile.realName || "",
+        avatar: profile.userAvatar || "",
+        ranking: typeof profile.ranking === "number" && profile.ranking > 0 ? profile.ranking : undefined,
+        countryName: profile.countryName || "",
+        company: profile.company || "",
+        school: profile.school || "",
+        reputation: typeof profile.reputation === "number" ? profile.reputation : 0,
+        totalsByDifficulty,
+        solvedByDifficulty,
+        beatsByDifficulty,
+        languageProblemCount,
+        recentAcSubmissions,
+    };
+}
+
+function mapDifficultyCounts(entries: Array<{ difficulty?: string; count?: number }>): ILeetCodeDifficultyCount[] {
+    const out: ILeetCodeDifficultyCount[] = [];
+    for (const entry of entries) {
+        const difficulty: Difficulty | undefined = mapDifficultyLabel(entry.difficulty);
+        if (!difficulty) {
+            continue;
+        }
+        out.push({
+            difficulty,
+            count: typeof entry.count === "number" ? entry.count : 0,
+        });
+    }
+    return out;
+}
+
+// Some payloads omit the "All" rollup. Synthesize one from Easy/Medium/Hard so
+// the consumer can always render a "Solved X/Y" headline without conditionals.
+function ensureAllAggregate(entries: ILeetCodeDifficultyCount[]): ILeetCodeDifficultyCount[] {
+    if (entries.some((entry: ILeetCodeDifficultyCount) => entry.difficulty === "All")) {
+        return entries;
+    }
+
+    const total: number = entries.reduce((sum: number, entry: ILeetCodeDifficultyCount) => sum + entry.count, 0);
+    return [{ difficulty: "All", count: total }, ...entries];
+}
+
+function mapDifficultyLabel(value: string | undefined): Difficulty | undefined {
+    switch ((value || "").toLowerCase()) {
+        case "all":
+            return "All";
+        case "easy":
+            return "Easy";
+        case "medium":
+            return "Medium";
+        case "hard":
+            return "Hard";
+        default:
+            return undefined;
+    }
+}
+
+function mapBeatsDifficulty(value: string | undefined): "Easy" | "Medium" | "Hard" | undefined {
+    switch ((value || "").toLowerCase()) {
+        case "easy":
+            return "Easy";
+        case "medium":
+            return "Medium";
+        case "hard":
+            return "Hard";
+        default:
+            return undefined;
+    }
+}
+
+function normalizeTimestamp(value: string | number | undefined): number {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+    }
+    if (typeof value === "string") {
+        const parsed: number = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
 }
 
 // ---------------------------------------------------------------------------

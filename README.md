@@ -81,9 +81,28 @@ VS Code commands:
 
 - `LeetCode: Sign In`
 - `LeetCode: Sign Out`
+- `LeetCode: Show User Profile`
 - `LeetCode: Show Browser Auth Sync Status`
 - `LeetCode: Restart Browser Auth Sync Server`
 - `LeetCode: Force Start Browser Auth Sync Server`
+
+### Status Bar: Personal Stats Panel
+
+Once signed in, the `LeetCode: <username>` indicator in the VS Code bottom
+status bar is clickable. It opens a personal-stats panel that mirrors the
+public profile and progress pages on `leetcode.com`:
+
+- Total solved problems with an Easy/Medium/Hard progress bar against the
+  full catalog (e.g. `464 / 950 Easy`).
+- "Beats X%" percentile per difficulty.
+- Global ranking, country, company, school, and reputation when present.
+- Most-used languages ranked by solved-problem count.
+- The 10 most recent Accepted submissions with relative timestamps and a
+  direct link back to each problem.
+
+The panel is also reachable from the command palette as
+`LeetCode: Show User Profile`. When you are signed out, the same status bar
+indicator opens the sign-in picker instead.
 
 Browser extension controls:
 

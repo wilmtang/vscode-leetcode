@@ -4,6 +4,7 @@ import * as os from "os";
 import * as path from "path";
 import {
     addFavoriteQuestion,
+    fetchUserProfile,
     fetchUserStatus,
     getDefaultFavoriteSlug,
     getFavoriteProblemSlugs,
@@ -12,6 +13,7 @@ import {
     ILeetCodeProblem,
     ILeetCodeQuestionDetail,
     ILeetCodeSolutionArticle,
+    ILeetCodeUserProfile,
     listProblems,
     removeFavoriteQuestion,
 } from "../../request/leetcode-api";
@@ -49,6 +51,38 @@ describe("leetcode-api (live)", () => {
             assert.strictEqual(status.isSignedIn, true, "fixture session is not signed in — recapture it from the browser extension");
             assert.ok(status.username && status.username.length > 0, "expected a username");
             assert.strictEqual(typeof status.isPremium, "boolean", "expected isPremium to be a boolean");
+        });
+    });
+
+    describe("user profile (status bar panel)", () => {
+        let profile: ILeetCodeUserProfile;
+
+        before(async function (): Promise<void> {
+            this.timeout(30 * 1000);
+            const status = await fetchUserStatus();
+            assert.ok(status.username, "fixture session has no username — cannot fetch profile");
+            profile = await fetchUserProfile(status.username);
+        });
+
+        it("returns the signed-in user's username and stats blocks", () => {
+            assert.ok(profile.username && profile.username.length > 0, "expected a username");
+
+            const all = profile.solvedByDifficulty.find((entry) => entry.difficulty === "All");
+            assert.ok(all, "expected an All AC count (synthesized if absent)");
+            assert.ok(all!.count >= 0, "AC count should be non-negative");
+
+            const catalogAll = profile.totalsByDifficulty.find((entry) => entry.difficulty === "All");
+            if (catalogAll) {
+                assert.ok(catalogAll.count > 100, `expected the catalog total to be > 100, got ${catalogAll.count}`);
+            }
+        });
+
+        it("returns recent AC submissions when there is solve history", () => {
+            for (const entry of profile.recentAcSubmissions) {
+                assert.ok(entry.title.length > 0, "every recent entry must have a title");
+                assert.ok(entry.titleSlug.length > 0, "every recent entry must have a slug");
+                assert.ok(entry.timestamp >= 0, "every recent entry must have a numeric timestamp");
+            }
         });
     });
 

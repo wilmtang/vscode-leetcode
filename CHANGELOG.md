@@ -3,6 +3,16 @@ All notable changes to the "leetcode" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [Unreleased]
+### Added
+- **Status bar profile panel**: clicking the `LeetCode: <username>` status bar
+  item opens a personal-stats webview with total solved counts, Easy/Medium/Hard
+  progress bars against the full catalog, "Beats %" per difficulty, global
+  ranking, country/company/school, language breakdown, and the 10 most recent
+  Accepted submissions. The same view is reachable via
+  `LeetCode: Show User Profile`. When signed out, the status bar click opens the
+  sign-in picker instead of being a dead-end.
+
 ## [0.19.0]
 ### Changed
 - The extension now talks to LeetCode **directly over HTTP/GraphQL** using the synced browser cookie, instead of bundling and shelling out to `vsc-leetcode-cli`. **Node.js is no longer required** to run the extension.

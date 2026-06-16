@@ -90,6 +90,91 @@ export const cnQuestionItemPercentPassThrough = {
     topicTags: [],
 };
 
+// User-profile GraphQL payloads. Mirror the live response shapes captured from
+// leetcode.com/u/<user>/ (userPublicProfile, userProblemsSolved,
+// recentAcSubmissions, languageStats) so mapUserProfile() can be exercised
+// without a cookie.
+export const userPublicProfileResponse = {
+    matchedUser: {
+        username: "SleezyBunny",
+        profile: {
+            ranking: 16607,
+            userAvatar: "https://assets.leetcode.com/users/seddas/avatar.png",
+            realName: "Lingling40hr",
+            countryName: "United States",
+            company: "Best Sweat Shop",
+            school: "University of Diploma Mill",
+            reputation: 273,
+        },
+    },
+};
+
+export const userProblemsSolvedResponse = {
+    allQuestionsCount: [
+        { difficulty: "All", count: 3962 },
+        { difficulty: "Easy", count: 950 },
+        { difficulty: "Medium", count: 2069 },
+        { difficulty: "Hard", count: 943 },
+    ],
+    matchedUser: {
+        problemsSolvedBeatsStats: [
+            { difficulty: "Easy", percentage: 99.84 },
+            { difficulty: "Medium", percentage: 99.54 },
+            { difficulty: "Hard", percentage: 97.99 },
+        ],
+        submitStatsGlobal: {
+            acSubmissionNum: [
+                { difficulty: "All", count: 1196 },
+                { difficulty: "Easy", count: 464 },
+                { difficulty: "Medium", count: 614 },
+                { difficulty: "Hard", count: 118 },
+            ],
+        },
+    },
+};
+
+// Shape returned when the All rollup is absent — exercises ensureAllAggregate.
+export const userProblemsSolvedResponseWithoutAll = {
+    allQuestionsCount: [
+        { difficulty: "Easy", count: 950 },
+        { difficulty: "Medium", count: 2069 },
+        { difficulty: "Hard", count: 943 },
+    ],
+    matchedUser: {
+        problemsSolvedBeatsStats: [
+            { difficulty: "Easy", percentage: 50.0 },
+        ],
+        submitStatsGlobal: {
+            acSubmissionNum: [
+                { difficulty: "Easy", count: 10 },
+                { difficulty: "Medium", count: 20 },
+                { difficulty: "Hard", count: 5 },
+            ],
+        },
+    },
+};
+
+export const recentAcSubmissionsResponse = {
+    recentAcSubmissionList: [
+        { id: "2034951904", title: "Contains Duplicate III", titleSlug: "contains-duplicate-iii", timestamp: "1781601573" },
+        { id: "2032725641", title: "Car Pooling", titleSlug: "car-pooling", timestamp: "1781434347" },
+        // Missing title is dropped by the mapper.
+        { id: "0", title: "", titleSlug: "", timestamp: "0" },
+    ],
+};
+
+export const languageStatsResponse = {
+    matchedUser: {
+        languageProblemCount: [
+            { languageName: "C++", problemsSolved: 5 },
+            { languageName: "Java", problemsSolved: 412 },
+            { languageName: "Python3", problemsSolved: 919 },
+            // Zero counts are filtered.
+            { languageName: "COBOL", problemsSolved: 0 },
+        ],
+    },
+};
+
 export const questionDetailItem = {
     categoryTitle: "Algorithms",
     codeSnippets: [

@@ -6,6 +6,7 @@ import { codeLensController } from "./codelens/CodeLensController";
 import * as cache from "./commands/cache";
 import { switchDefaultLanguage } from "./commands/language";
 import * as plugin from "./commands/plugin";
+import * as profile from "./commands/profile";
 import * as show from "./commands/show";
 import * as star from "./commands/star";
 import * as submit from "./commands/submit";
@@ -26,6 +27,7 @@ import { leetCodeManager } from "./leetCodeManager";
 import { leetCodeStatusBarController } from "./statusbar/leetCodeStatusBarController";
 import { DialogType, promptForOpenOutputChannel } from "./utils/uiUtils";
 import { leetCodePreviewProvider } from "./webview/leetCodePreviewProvider";
+import { leetCodeProfileProvider } from "./webview/leetCodeProfileProvider";
 import { leetCodeSolutionProvider } from "./webview/leetCodeSolutionProvider";
 import { leetCodeSubmissionProvider } from "./webview/leetCodeSubmissionProvider";
 import { markdownEngine } from "./webview/markdownEngine";
@@ -49,6 +51,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             leetCodeStatusBarController,
             leetCodeChannel,
             leetCodePreviewProvider,
+            leetCodeProfileProvider,
             leetCodeSubmissionProvider,
             leetCodeSolutionProvider,
             markdownEngine,
@@ -74,6 +77,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             vscode.commands.registerCommand("leetcode.showProblem", (node: LeetCodeNode) => show.showProblem(node)),
             vscode.commands.registerCommand("leetcode.pickOne", () => show.pickOne()),
             vscode.commands.registerCommand("leetcode.searchProblem", () => show.searchProblem()),
+            vscode.commands.registerCommand("leetcode.showUserProfile", () => profile.showUserProfile()),
             vscode.commands.registerCommand("leetcode.showSolution", (input: LeetCodeNode | vscode.Uri) => show.showSolution(input)),
             vscode.commands.registerCommand("leetcode.refreshExplorer", () => leetCodeTreeDataProvider.refresh()),
             vscode.commands.registerCommand("leetcode.testSolution", (uri?: vscode.Uri) => {

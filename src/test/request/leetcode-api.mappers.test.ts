@@ -5,6 +5,7 @@ import {
     mapGlobalProblem,
     mapQuestionDetail,
     mapRestProblem,
+    mapUserProfile,
 } from "../../request/leetcode-api";
 import { ProblemState } from "../../shared";
 import {
@@ -12,9 +13,14 @@ import {
     cnQuestionItemPercentPassThrough,
     globalQuestionItem,
     globalQuestionItemLockedUnknown,
+    languageStatsResponse,
     questionDetailItem,
+    recentAcSubmissionsResponse,
     restProblemItem,
     restProblemItemLockedUnknown,
+    userProblemsSolvedResponse,
+    userProblemsSolvedResponseWithoutAll,
+    userPublicProfileResponse,
 } from "../fixtures/leetcode-responses";
 
 describe("leetcode-api mappers", () => {
@@ -118,6 +124,91 @@ describe("leetcode-api mappers", () => {
     describe("formatAcceptanceRate", () => {
         it("formats with two decimals and a percent suffix", () => {
             assert.strictEqual(formatAcceptanceRate(49.1), "49.10 %");
+        });
+    });
+
+    describe("mapUserProfile", () => {
+        it("aggregates the four profile payloads into a single shape", () => {
+            const profile = mapUserProfile({
+                username: "SleezyBunny",
+                publicProfile: userPublicProfileResponse,
+                solved: userProblemsSolvedResponse,
+                recent: recentAcSubmissionsResponse,
+                languages: languageStatsResponse,
+            });
+
+            assert.strictEqual(profile.username, "SleezyBunny");
+            assert.strictEqual(profile.realName, "Lingling40hr");
+            assert.strictEqual(profile.ranking, 16607);
+            assert.strictEqual(profile.countryName, "United States");
+            assert.strictEqual(profile.company, "Best Sweat Shop");
+            assert.strictEqual(profile.school, "University of Diploma Mill");
+            assert.strictEqual(profile.reputation, 273);
+
+            const totalAll = profile.totalsByDifficulty.find((entry) => entry.difficulty === "All");
+            assert.ok(totalAll);
+            assert.strictEqual(totalAll!.count, 3962);
+
+            const solvedAll = profile.solvedByDifficulty.find((entry) => entry.difficulty === "All");
+            assert.ok(solvedAll);
+            assert.strictEqual(solvedAll!.count, 1196);
+
+            assert.strictEqual(profile.beatsByDifficulty.length, 3);
+            assert.strictEqual(profile.beatsByDifficulty[0].difficulty, "Easy");
+            assert.strictEqual(profile.beatsByDifficulty[0].percentage, 99.84);
+
+            assert.strictEqual(profile.languageProblemCount.length, 3, "zero-counts dropped");
+            // Highest-count language sorted first.
+            assert.strictEqual(profile.languageProblemCount[0].languageName, "Python3");
+            assert.strictEqual(profile.languageProblemCount[0].problemsSolved, 919);
+
+            assert.strictEqual(profile.recentAcSubmissions.length, 2, "blank-title entry dropped");
+            assert.strictEqual(profile.recentAcSubmissions[0].title, "Contains Duplicate III");
+            assert.strictEqual(profile.recentAcSubmissions[0].titleSlug, "contains-duplicate-iii");
+            // Timestamp strings normalized to numbers.
+            assert.strictEqual(profile.recentAcSubmissions[0].timestamp, 1781601573);
+        });
+
+        it("falls back to the requested username when matchedUser is missing", () => {
+            const profile = mapUserProfile({ username: "ghost" });
+            assert.strictEqual(profile.username, "ghost");
+            assert.strictEqual(profile.realName, "");
+            assert.strictEqual(profile.ranking, undefined);
+            assert.deepStrictEqual(profile.totalsByDifficulty, []);
+            // ensureAllAggregate always guarantees an All entry so the webview
+            // can read solvedByDifficulty[0].count unconditionally.
+            assert.deepStrictEqual(profile.solvedByDifficulty, [{ difficulty: "All", count: 0 }]);
+            assert.deepStrictEqual(profile.beatsByDifficulty, []);
+            assert.deepStrictEqual(profile.recentAcSubmissions, []);
+            assert.deepStrictEqual(profile.languageProblemCount, []);
+        });
+
+        it("synthesizes the All rollup when LeetCode omits it", () => {
+            const profile = mapUserProfile({
+                username: "SleezyBunny",
+                solved: userProblemsSolvedResponseWithoutAll,
+            });
+            const all = profile.solvedByDifficulty.find((entry) => entry.difficulty === "All");
+            assert.ok(all, "expected an All entry to be synthesized");
+            assert.strictEqual(all!.count, 10 + 20 + 5);
+            // The original three entries are still present after the All entry.
+            assert.strictEqual(profile.solvedByDifficulty.length, 4);
+        });
+
+        it("drops beats entries with unknown difficulties", () => {
+            const profile = mapUserProfile({
+                username: "SleezyBunny",
+                solved: {
+                    matchedUser: {
+                        problemsSolvedBeatsStats: [
+                            { difficulty: "Easy", percentage: 50 },
+                            { difficulty: "Insane", percentage: 1 },
+                        ],
+                    },
+                },
+            });
+            assert.strictEqual(profile.beatsByDifficulty.length, 1);
+            assert.strictEqual(profile.beatsByDifficulty[0].difficulty, "Easy");
         });
     });
 });
