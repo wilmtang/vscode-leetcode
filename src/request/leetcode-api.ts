@@ -440,6 +440,41 @@ export async function fetchUserProfile(username: string): Promise<ILeetCodeUserP
     });
 }
 
+// Section-level fetchers. Each does one GraphQL round-trip and maps just its own
+// slice, so a caller can fire all four independently and render each the moment
+// it lands (see commands/profile.ts) instead of awaiting the whole aggregate.
+// They throw on failure; the caller decides whether that degrades one section or
+// the panel.
+export async function fetchProfileIdentity(username: string): Promise<IProfileIdentity> {
+    const { cookie, referer } = profileRequestContext(username);
+    return mapProfileIdentity(username, await fetchUserPublicProfile(username, cookie, referer));
+}
+
+export async function fetchProfileStats(username: string): Promise<IProfileStats> {
+    const { cookie, referer } = profileRequestContext(username);
+    return mapProfileStats(await fetchUserProblemsSolved(username, cookie, referer));
+}
+
+export async function fetchProfileRecent(username: string): Promise<IProfileRecent> {
+    const { cookie, referer } = profileRequestContext(username);
+    return mapProfileRecent(await fetchRecentAcSubmissions(username, cookie, referer, 15));
+}
+
+export async function fetchProfileLanguages(username: string): Promise<IProfileLanguages> {
+    const { cookie, referer } = profileRequestContext(username);
+    return mapProfileLanguages(await fetchLanguageStats(username, cookie, referer));
+}
+
+function profileRequestContext(username: string): { cookie: string; referer: string } {
+    if (!username) {
+        throw new DirectApiUnsupportedError("Cannot fetch a LeetCode profile without a username.");
+    }
+    return {
+        cookie: getRequiredCookie(),
+        referer: `${getUrl("base")}/u/${encodeURIComponent(username)}/`,
+    };
+}
+
 async function fetchUserPublicProfile(username: string, cookie: string, referer: string): Promise<IUserPublicProfileData> {
     const response: IGraphqlResponse<IUserPublicProfileData> = await requestJson<IGraphqlResponse<IUserPublicProfileData>>({
         method: "POST",
@@ -546,21 +581,73 @@ export interface IUserProfileRawInputs {
     languages?: ILanguageStatsData;
 }
 
+// The four independent slices of a profile. Each backs exactly one GraphQL
+// query and one panel section, so they can be fetched, mapped, and rendered on
+// their own without waiting for the others. `ILeetCodeUserProfile` is the union
+// of all four (kept for the aggregate `fetchUserProfile`/`mapUserProfile` path).
+export interface IProfileIdentity {
+    username: string;
+    realName: string;
+    avatar: string;
+    ranking: number | undefined;
+    countryName: string;
+    company: string;
+    school: string;
+    reputation: number;
+}
+
+export interface IProfileStats {
+    totalsByDifficulty: ILeetCodeDifficultyCount[];
+    solvedByDifficulty: ILeetCodeDifficultyCount[];
+    beatsByDifficulty: ILeetCodeBeats[];
+}
+
+export interface IProfileRecent {
+    recentAcSubmissions: ILeetCodeRecentSubmission[];
+}
+
+export interface IProfileLanguages {
+    languageProblemCount: ILeetCodeLanguageCount[];
+}
+
 // Combines the four raw GraphQL payloads into a single, always-shaped object.
 // Exported so the unit tests (and any future caller that pre-fetches the pieces
 // in parallel) can exercise the mapping without touching the network.
 export function mapUserProfile(inputs: IUserProfileRawInputs): ILeetCodeUserProfile {
-    const profile = (inputs.publicProfile && inputs.publicProfile.matchedUser && inputs.publicProfile.matchedUser.profile) || {};
-    const username: string = (inputs.publicProfile && inputs.publicProfile.matchedUser && inputs.publicProfile.matchedUser.username) || inputs.username;
+    return {
+        ...mapProfileIdentity(inputs.username, inputs.publicProfile),
+        ...mapProfileStats(inputs.solved),
+        ...mapProfileRecent(inputs.recent),
+        ...mapProfileLanguages(inputs.languages),
+    };
+}
 
-    const totalsByDifficulty: ILeetCodeDifficultyCount[] = mapDifficultyCounts((inputs.solved && inputs.solved.allQuestionsCount) || []);
+// Identity / "About" slice — ranking, real name, avatar, country/company/school.
+export function mapProfileIdentity(fallbackUsername: string, data?: IUserPublicProfileData): IProfileIdentity {
+    const matched = (data && data.matchedUser) || {};
+    const profile = matched.profile || {};
+    return {
+        username: matched.username || fallbackUsername,
+        realName: profile.realName || "",
+        avatar: profile.userAvatar || "",
+        ranking: typeof profile.ranking === "number" && profile.ranking > 0 ? profile.ranking : undefined,
+        countryName: profile.countryName || "",
+        company: profile.company || "",
+        school: profile.school || "",
+        reputation: typeof profile.reputation === "number" ? profile.reputation : 0,
+    };
+}
+
+// Solved-problem slice — catalog totals, AC counts, and beats % by difficulty.
+export function mapProfileStats(data?: IUserProblemsSolvedData): IProfileStats {
+    const totalsByDifficulty: ILeetCodeDifficultyCount[] = mapDifficultyCounts((data && data.allQuestionsCount) || []);
 
     const rawAcCounts: ILeetCodeDifficultyCount[] = mapDifficultyCounts(
-        (inputs.solved && inputs.solved.matchedUser && inputs.solved.matchedUser.submitStatsGlobal && inputs.solved.matchedUser.submitStatsGlobal.acSubmissionNum) || [],
+        (data && data.matchedUser && data.matchedUser.submitStatsGlobal && data.matchedUser.submitStatsGlobal.acSubmissionNum) || [],
     );
     const solvedByDifficulty: ILeetCodeDifficultyCount[] = ensureAllAggregate(rawAcCounts);
 
-    const beatsByDifficulty: ILeetCodeBeats[] = ((inputs.solved && inputs.solved.matchedUser && inputs.solved.matchedUser.problemsSolvedBeatsStats) || [])
+    const beatsByDifficulty: ILeetCodeBeats[] = ((data && data.matchedUser && data.matchedUser.problemsSolvedBeatsStats) || [])
         .map((entry: { difficulty?: string; percentage?: number }): ILeetCodeBeats | undefined => {
             const difficulty: "Easy" | "Medium" | "Hard" | undefined = mapBeatsDifficulty(entry.difficulty);
             if (!difficulty) {
@@ -573,15 +660,12 @@ export function mapUserProfile(inputs: IUserProfileRawInputs): ILeetCodeUserProf
         })
         .filter((entry: ILeetCodeBeats | undefined): entry is ILeetCodeBeats => entry !== undefined);
 
-    const languageProblemCount: ILeetCodeLanguageCount[] = ((inputs.languages && inputs.languages.matchedUser && inputs.languages.matchedUser.languageProblemCount) || [])
-        .map((entry: { languageName?: string; problemsSolved?: number }): ILeetCodeLanguageCount => ({
-            languageName: entry.languageName || "Unknown",
-            problemsSolved: typeof entry.problemsSolved === "number" ? entry.problemsSolved : 0,
-        }))
-        .filter((entry: ILeetCodeLanguageCount) => entry.problemsSolved > 0)
-        .sort((left: ILeetCodeLanguageCount, right: ILeetCodeLanguageCount) => right.problemsSolved - left.problemsSolved);
+    return { totalsByDifficulty, solvedByDifficulty, beatsByDifficulty };
+}
 
-    const recentAcSubmissions: ILeetCodeRecentSubmission[] = ((inputs.recent && inputs.recent.recentAcSubmissionList) || [])
+// Recent-AC slice — last N Accepted submissions, blank-title rows dropped.
+export function mapProfileRecent(data?: IRecentAcSubmissionsData): IProfileRecent {
+    const recentAcSubmissions: ILeetCodeRecentSubmission[] = ((data && data.recentAcSubmissionList) || [])
         .map((entry: { id?: string; title?: string; titleSlug?: string; timestamp?: string | number }): ILeetCodeRecentSubmission => ({
             id: entry.id || "",
             title: entry.title || "",
@@ -590,21 +674,20 @@ export function mapUserProfile(inputs: IUserProfileRawInputs): ILeetCodeUserProf
         }))
         .filter((entry: ILeetCodeRecentSubmission) => entry.title.length > 0);
 
-    return {
-        username,
-        realName: profile.realName || "",
-        avatar: profile.userAvatar || "",
-        ranking: typeof profile.ranking === "number" && profile.ranking > 0 ? profile.ranking : undefined,
-        countryName: profile.countryName || "",
-        company: profile.company || "",
-        school: profile.school || "",
-        reputation: typeof profile.reputation === "number" ? profile.reputation : 0,
-        totalsByDifficulty,
-        solvedByDifficulty,
-        beatsByDifficulty,
-        languageProblemCount,
-        recentAcSubmissions,
-    };
+    return { recentAcSubmissions };
+}
+
+// Language slice — solved-count per language, zero-counts dropped, sorted desc.
+export function mapProfileLanguages(data?: ILanguageStatsData): IProfileLanguages {
+    const languageProblemCount: ILeetCodeLanguageCount[] = ((data && data.matchedUser && data.matchedUser.languageProblemCount) || [])
+        .map((entry: { languageName?: string; problemsSolved?: number }): ILeetCodeLanguageCount => ({
+            languageName: entry.languageName || "Unknown",
+            problemsSolved: typeof entry.problemsSolved === "number" ? entry.problemsSolved : 0,
+        }))
+        .filter((entry: ILeetCodeLanguageCount) => entry.problemsSolved > 0)
+        .sort((left: ILeetCodeLanguageCount, right: ILeetCodeLanguageCount) => right.problemsSolved - left.problemsSolved);
+
+    return { languageProblemCount };
 }
 
 function mapDifficultyCounts(entries: Array<{ difficulty?: string; count?: number }>): ILeetCodeDifficultyCount[] {
