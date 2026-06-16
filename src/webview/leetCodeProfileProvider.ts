@@ -20,7 +20,7 @@ import { ILeetCodeWebviewOption, LeetCodeWebview } from "./LeetCodeWebview";
 // One slot per dynamically-filled section. The webview holds a `#sec-<id>`
 // container for each; the extension posts `{ command: "section", id, html }`
 // and the client swaps that container's innerHTML in place.
-export type ProfileSectionId = "header" | "about" | "totals" | "languages" | "recent";
+export type ProfileSectionId = "header" | "about" | "totals" | "languages" | "recent" | "sync";
 
 // Local cookie/auth-sync state surfaced in the panel's "Session Sync" card. The
 // shared IAuthSyncSummary (label/tone/timestamps) is gathered by the command and
@@ -94,6 +94,13 @@ class LeetCodeProfileProvider extends LeetCodeWebview {
 
     public updateLanguages(languages: IProfileLanguages): void {
         this.postSection("languages", "ok", buildLanguageRows(languages.languageProblemCount) || emptyNote("No language stats yet."));
+    }
+
+    // Re-render the Session Sync card in place. Called on every auth sync while
+    // the panel is open, so "Last auth sync" resets to "just now" without a
+    // manual Refresh; no-ops when the panel is closed (see postSection guard).
+    public updateSync(sync: IProfileSyncStatus): void {
+        this.postSection("sync", "ok", buildSyncCard(sync));
     }
 
     public failSection(id: ProfileSectionId, message: string): void {
@@ -295,6 +302,9 @@ class LeetCodeProfileProvider extends LeetCodeWebview {
     }
 
     private postSection(id: ProfileSectionId, state: "ok" | "error", html: string): void {
+        if (!this.panel) {
+            return;
+        }
         const message: ISectionMessage = { command: "section", id, state, html };
         if (this.ready) {
             this.deliver(message);

@@ -56,6 +56,14 @@ async function fetchSection<T>(id: ProfileSectionId, fetch: () => Promise<T>, ap
     }
 }
 
+// Current sync status for the signed-in user, shaped for the panel. Exported so
+// the auth-sync event handler can push a fresh card into an already-open panel.
+export function currentProfileSyncStatus(): IProfileSyncStatus {
+    const cached: UserDataType | undefined = globalState.getUserStatus();
+    const username: string = leetCodeManager.getUser() || (cached && cached.username) || "";
+    return gatherSyncStatus(username, cached);
+}
+
 // Snapshots the local cookie/auth-sync state for the panel's "Session Sync"
 // card. All of this is synchronous local state (no network), so the card paints
 // immediately. The label/tone/timestamps come from the shared summary that also

@@ -44,11 +44,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             leetCodeTreeDataProvider.refresh();
         });
 
-        // Refresh the status-bar tooltip on every auth sync (including same-user
-        // re-syncs that don't fire "statusChanged"), so "Last auth sync" stays
-        // current without reopening the profile panel.
+        // Refresh the status-bar tooltip and the open profile panel's Session
+        // Sync card on every auth sync (including same-user re-syncs that don't
+        // fire "statusChanged"), so "Last auth sync" stays current without a
+        // manual Refresh. updateSync no-ops when the panel is closed.
         context.subscriptions.push(authSyncServer.onDidSync(() => {
             leetCodeStatusBarController.updateStatusBar(leetCodeManager.getStatus(), leetCodeManager.getUser());
+            leetCodeProfileProvider.updateSync(profile.currentProfileSyncStatus());
         }));
 
         leetCodeTreeDataProvider.initialize(context);
