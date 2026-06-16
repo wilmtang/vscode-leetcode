@@ -24,6 +24,25 @@ const singleLineCommentByLanguage: Map<string, string> = new Map([
     ["ruby", "#"],
 ]);
 
+export interface ICommentStyle {
+    start: string;
+    line: string;
+    end: string;
+    singleLine: string;
+}
+
+// Mirrors vsc-leetcode-cli's helper.langToCommentStyle so the files this
+// extension now generates itself keep the exact comment framing the CLI used
+// (and that parseSolutionFile / getNodeIdFromFile still parse).
+export function getCommentStyle(language: string): ICommentStyle {
+    if (cStyleCommentLanguages.has(language)) {
+        return { start: "/*", line: " *", end: " */", singleLine: "//" };
+    }
+
+    const marker: string = singleLineCommentByLanguage.get(language) || "#";
+    return { start: marker, line: marker, end: marker, singleLine: marker };
+}
+
 export function normalizeTemplateComments(codeTemplate: string, language: string, showDescriptionInComment: boolean): string {
     if (!showDescriptionInComment) {
         return codeTemplate;

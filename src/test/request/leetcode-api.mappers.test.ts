@@ -76,6 +76,9 @@ describe("leetcode-api mappers", () => {
             assert.strictEqual(detail.titleSlug, "two-sum");
             assert.strictEqual(detail.codeSnippets.length, 2);
             assert.deepStrictEqual(detail.exampleTestcaseList, ["[2,7,11,15]\n9"]);
+            assert.strictEqual(detail.categoryTitle, "Algorithms");
+            assert.strictEqual(detail.likes, 12345);
+            assert.strictEqual(detail.dislikes, 456);
         });
 
         it("falls back to English content and slug tags when not translating", () => {

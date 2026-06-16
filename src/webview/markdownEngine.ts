@@ -27,7 +27,23 @@ class MarkdownEngine implements vscode.Disposable {
     }
 
     public get localResourceRoots(): vscode.Uri[] {
-        return [vscode.Uri.file(path.join(this.config.extRoot, "media"))];
+        return [
+            vscode.Uri.file(path.join(this.config.extRoot, "media")),
+            vscode.Uri.file(this.katexDistDir),
+        ];
+    }
+
+    // KaTeX ships its stylesheet + web fonts in its dist folder; expose them to
+    // the webview so the math rendered by textRenderer is styled. The relative
+    // `fonts/…` URLs inside katex.min.css resolve against this same root.
+    public get katexDistDir(): string {
+        // Compiled location: <ext>/out/src/webview/markdownEngine.js
+        return path.join(__dirname, "..", "..", "..", "node_modules", "katex", "dist");
+    }
+
+    public getKatexStyle(): string {
+        const cssPath: vscode.Uri = vscode.Uri.file(path.join(this.katexDistDir, "katex.min.css")).with({ scheme: "vscode-resource" });
+        return `<link rel="stylesheet" type="text/css" href="${cssPath.toString()}">`;
     }
 
     public dispose(): void {

@@ -31,11 +31,14 @@ export interface ILeetCodeCodeSnippet {
 }
 
 export interface ILeetCodeQuestionDetail {
+    categoryTitle: string;
     codeSnippets: ILeetCodeCodeSnippet[];
     content: string;
     difficulty: "Easy" | "Medium" | "Hard" | "Unknown";
+    dislikes: number;
     exampleTestcaseList: string[];
     hints: string[];
+    likes: number;
     questionFrontendId: string;
     questionId: string;
     sampleTestCase: string;
@@ -118,11 +121,14 @@ interface IQuestionDetailData {
 }
 
 interface IQuestionDetailItem {
+    categoryTitle?: string;
     codeSnippets?: ILeetCodeCodeSnippet[];
     content?: string;
     difficulty?: string;
+    dislikes?: number;
     exampleTestcaseList?: string[];
     hints?: string[];
+    likes?: number;
     questionFrontendId?: string;
     questionId?: string;
     sampleTestCase?: string;
@@ -191,11 +197,14 @@ export async function getQuestionDetail(titleSlug: string, needTranslation: bool
             query: [
                 "query getQuestionDetail($titleSlug: String!) {",
                 "  question(titleSlug: $titleSlug) {",
+                "    categoryTitle",
                 "    codeSnippets { code lang langSlug }",
                 "    content",
                 "    difficulty",
+                "    dislikes",
                 "    exampleTestcaseList",
                 "    hints",
+                "    likes",
                 "    questionFrontendId",
                 "    questionId",
                 "    sampleTestCase",
@@ -314,11 +323,14 @@ export function mapCnProblem(raw: ICnQuestionListItem, needTranslation: boolean)
 export function mapQuestionDetail(raw: IQuestionDetailItem, needTranslation: boolean): ILeetCodeQuestionDetail {
     const content: string = needTranslation && raw.translatedContent ? raw.translatedContent : raw.content || "";
     return {
+        categoryTitle: raw.categoryTitle || "",
         codeSnippets: raw.codeSnippets || [],
         content,
         difficulty: normalizeDifficulty(raw.difficulty),
+        dislikes: raw.dislikes || 0,
         exampleTestcaseList: raw.exampleTestcaseList || [],
         hints: raw.hints || [],
+        likes: raw.likes || 0,
         questionFrontendId: raw.questionFrontendId || "",
         questionId: raw.questionId || "",
         sampleTestCase: raw.sampleTestCase || "",

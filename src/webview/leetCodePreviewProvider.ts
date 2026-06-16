@@ -3,9 +3,11 @@
 
 import { commands, ViewColumn } from "vscode";
 import { getLeetCodeEndpoint } from "../commands/plugin";
-import { Endpoint, IProblem } from "../shared";
+import { ILeetCodeQuestionDetail } from "../request/leetcode-api";
+import { Endpoint, getUrl, IProblem } from "../shared";
 import { ILeetCodeWebviewOption, LeetCodeWebview } from "./LeetCodeWebview";
 import { markdownEngine } from "./markdownEngine";
+import { renderDescriptionHtml } from "./textRenderer";
 
 class LeetCodePreviewProvider extends LeetCodeWebview {
     protected readonly viewType: string = "leetcode.preview";
@@ -17,8 +19,8 @@ class LeetCodePreviewProvider extends LeetCodeWebview {
         return this.sideMode;
     }
 
-    public show(descString: string, node: IProblem, isSideMode: boolean = false): void {
-        this.description = this.parseDescription(descString, node);
+    public show(detail: ILeetCodeQuestionDetail, node: IProblem, isSideMode: boolean = false): void {
+        this.description = this.buildDescription(detail, node);
         this.node = node;
         this.sideMode = isSideMode;
         this.showWebviewInternal();
@@ -91,8 +93,9 @@ class LeetCodePreviewProvider extends LeetCodeWebview {
             <!DOCTYPE html>
             <html>
             <head>
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; script-src vscode-resource: 'unsafe-inline'; style-src vscode-resource: 'unsafe-inline';"/>
+                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; script-src vscode-resource: 'unsafe-inline'; style-src vscode-resource: 'unsafe-inline'; font-src vscode-resource:;"/>
                 ${markdownEngine.getStyles()}
+                ${markdownEngine.getKatexStyle()}
                 ${!this.sideMode ? button.style : ""}
                 <style>
                     code { white-space: pre-wrap; }
@@ -135,40 +138,18 @@ class LeetCodePreviewProvider extends LeetCodeWebview {
     //     await commands.executeCommand("workbench.action.toggleSidebarVisibility");
     // }
 
-    private parseDescription(descString: string, problem: IProblem): IDescription {
-        const [
-            ,
-            ,
-            /* title */ url,
-            ,
-            ,
-            ,
-            ,
-            ,
-            /* tags */ /* langs */ category,
-            difficulty,
-            likes,
-            dislikes,
-            ,
-            ,
-            ,
-            ,
-            /* accepted */ /* submissions */ /* testcase */ ...body
-        ] = descString.split("\n");
-        const valueAfterColon = (line: string | undefined): string => {
-            const segments: string[] = (line || "").split(": ");
-            return segments.length > 1 ? segments[1].trim() : "";
-        };
+    private buildDescription(detail: ILeetCodeQuestionDetail, problem: IProblem): IDescription {
+        const slug: string = detail.titleSlug || problem.titleSlug || "";
         return {
-            title: problem.name,
-            url: url || "",
+            title: detail.title || problem.name,
+            url: `${getUrl("base")}/problems/${slug}/description/`,
             tags: problem.tags,
             companies: problem.companies,
-            category: (category || "").slice(2),
-            difficulty: (difficulty || "").slice(2),
-            likes: valueAfterColon(likes),
-            dislikes: valueAfterColon(dislikes),
-            body: body.join("\n").replace(/<pre>[\r\n]*([^]+?)[\r\n]*<\/pre>/g, "<pre><code>$1</code></pre>"),
+            category: detail.categoryTitle,
+            difficulty: detail.difficulty,
+            likes: String(detail.likes),
+            dislikes: String(detail.dislikes),
+            body: renderDescriptionHtml(detail.content),
         };
     }
 

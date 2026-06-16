@@ -1,6 +1,7 @@
 // Copyright (c) jdneo. All rights reserved.
 // Licensed under the MIT license.
 
+import * as fse from "fs-extra";
 import * as _ from "lodash";
 import * as path from "path";
 import * as unescapeJS from "unescape-js";
@@ -10,8 +11,10 @@ import { LeetCodeNode } from "../explorer/LeetCodeNode";
 import { leetCodeChannel } from "../leetCodeChannel";
 import { leetCodeExecutor } from "../leetCodeExecutor";
 import { leetCodeManager } from "../leetCodeManager";
-import { Endpoint, IProblem, IQuickItemEx, languages, PREMIUM_URL_CN, PREMIUM_URL_GLOBAL, ProblemState } from "../shared";
+import { getQuestionDetail, ILeetCodeQuestionDetail } from "../request/leetcode-api";
+import { Endpoint, getUrl, IProblem, IQuickItemEx, languages, PREMIUM_URL_CN, PREMIUM_URL_GLOBAL, ProblemState } from "../shared";
 import { genFileExt, genFileName, getNodeIdFromFile } from "../utils/problemUtils";
+import { generateSolutionFileContent } from "../utils/solutionFileGenerator";
 import * as settingUtils from "../utils/settingUtils";
 import { IDescriptionConfiguration } from "../utils/settingUtils";
 import {
@@ -59,9 +62,20 @@ export async function previewProblem(input: IProblem | vscode.Uri, isSideMode: b
         }
     }
 
-    const needTranslation: boolean = settingUtils.shouldUseEndpointTranslation();
-    const descString: string = await leetCodeExecutor.getDescription(node.id, needTranslation);
-    leetCodePreviewProvider.show(descString, node, isSideMode);
+    const slug: string | undefined = node.titleSlug;
+    if (!slug) {
+        vscode.window.showErrorMessage(`Failed to resolve the problem slug for: ${node.name}.`);
+        return;
+    }
+
+    try {
+        const needTranslation: boolean = settingUtils.shouldUseEndpointTranslation();
+        const detail: ILeetCodeQuestionDetail = await getQuestionDetail(slug, needTranslation);
+        leetCodePreviewProvider.show(detail, node, isSideMode);
+    } catch (error) {
+        leetCodeChannel.appendLine(error.toString());
+        await promptForOpenOutputChannel("Failed to fetch the problem description. Please open the output channel for details.", DialogType.error);
+    }
 }
 
 export async function pickOne(): Promise<void> {
@@ -190,7 +204,7 @@ async function showProblemInternal(node: IProblem): Promise<void> {
         const descriptionConfig: IDescriptionConfiguration = settingUtils.getDescriptionConfiguration();
         const needTranslation: boolean = settingUtils.shouldUseEndpointTranslation();
 
-        await leetCodeExecutor.showProblem(node, language, finalPath, descriptionConfig.showInComment, needTranslation);
+        await generateProblemFile(node, language, finalPath, descriptionConfig.showInComment, needTranslation);
         const promises: any[] = [
             vscode.window.showTextDocument(vscode.Uri.file(finalPath), {
                 preview: false,
@@ -211,6 +225,43 @@ async function showProblemInternal(node: IProblem): Promise<void> {
     } catch (error) {
         await promptForOpenOutputChannel(`${error} Please open the output channel for details.`, DialogType.error);
     }
+}
+
+// Generates the solution file directly from the API (replacing the CLI
+// `show -c/-cx`). The canonical problem URL is embedded in the @lc header so the
+// already-migrated submit/test parseSlug() recovers the slug for any filename.
+async function generateProblemFile(
+    node: IProblem,
+    language: string,
+    filePath: string,
+    showDescriptionInComment: boolean,
+    needTranslation: boolean,
+): Promise<void> {
+    if (await fse.pathExists(filePath)) {
+        return;
+    }
+
+    const slug: string | undefined = node.titleSlug;
+    if (!slug) {
+        throw new Error(`Cannot resolve the problem slug for "${node.name}".`);
+    }
+
+    const detail: ILeetCodeQuestionDetail = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification },
+        async (p: vscode.Progress<{ message?: string }>) => {
+            p.report({ message: "Fetching problem data..." });
+            return getQuestionDetail(slug, needTranslation);
+        },
+    );
+
+    await fse.createFile(filePath);
+    await fse.writeFile(filePath, generateSolutionFileContent({
+        detail,
+        language,
+        frontendId: node.id,
+        showDescriptionInComment,
+        endpointBase: getUrl("base"),
+    }));
 }
 
 async function showDescriptionView(node: IProblem): Promise<void> {
