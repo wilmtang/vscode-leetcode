@@ -95,6 +95,7 @@ interface ICnQuestionListItem {
     frontendQuestionId?: string;
     isFavor?: boolean;
     paidOnly?: boolean;
+    questionId?: string;
     status?: string | null;
     title?: string;
     titleCn?: string;
@@ -402,8 +403,14 @@ export async function fetchUserStatus(): Promise<UserDataType> {
 }
 
 // Aggregates the four public-profile queries the leetcode.com/u/<user>/ page
-// fires. Each piece is fetched in parallel and any single failure degrades to
-// an empty section instead of failing the whole panel.
+// fires, in parallel, degrading any single failure to an empty section.
+//
+// NOTE (A2-12): the profile *panel* does NOT use this — commands/profile.ts calls
+// the four per-section fetchers (fetchProfileIdentity/Stats/Recent/Languages) so
+// each section renders the moment it lands. This aggregate is kept only as
+// test-support for the live integration test (leetcode-api.live.ts) and as the
+// composition exercised by the mapUserProfile unit tests. Prefer the per-section
+// fetchers for any new live caller; don't wire this into the UI.
 export async function fetchUserProfile(username: string): Promise<ILeetCodeUserProfile> {
     if (!username) {
         throw new DirectApiUnsupportedError("Cannot fetch a LeetCode profile without a username.");
@@ -1127,6 +1134,10 @@ export function mapCnProblem(raw: ICnQuestionListItem, needTranslation: boolean)
         isFavorite: !!raw.isFavor,
         locked: !!raw.paidOnly,
         questionFrontendId: raw.frontendQuestionId || "",
+        // Carry the internal questionId like mapGlobalProblem/mapRestProblem do, so
+        // the CN path isn't silently missing it for anything keyed on the internal
+        // id. (A2-10. CN remains untested overall — see audit 1 #2.)
+        questionId: raw.questionId,
         state: normalizeProblemState(raw.status),
         tags: mapTags(raw.topicTags, needTranslation),
         title: (needTranslation && raw.titleCn ? raw.titleCn : raw.title) || "",
@@ -1274,6 +1285,7 @@ async function fetchCnProblemPage(categorySlug: string, skip: number, limit: num
                 "      frontendQuestionId",
                 "      isFavor",
                 "      paidOnly",
+                "      questionId",
                 "      status",
                 "      title",
                 "      titleCn",

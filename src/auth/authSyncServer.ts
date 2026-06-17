@@ -404,7 +404,9 @@ class AuthSyncServer implements vscode.Disposable {
         if (secret) {
             const headerValue: string | string[] | undefined = req.headers[SECRET_HEADER];
             const providedSecret: string | undefined = Array.isArray(headerValue) ? headerValue[0] : headerValue;
-            if (providedSecret !== secret) {
+            // Constant-time compare so the shared secret can't be recovered byte by
+            // byte from response-timing differences. (A2-4.)
+            if (!constantTimeEquals(providedSecret, secret)) {
                 this.sendJson(res, 401, { ok: false, error: "Invalid auth sync secret." }, true, req);
                 return;
             }
@@ -453,7 +455,9 @@ class AuthSyncServer implements vscode.Disposable {
         const headerValue: string | string[] | undefined = req.headers[CONTROL_HEADER];
         const providedToken: string | undefined = Array.isArray(headerValue) ? headerValue[0] : headerValue;
 
-        if (!providedToken || providedToken !== this.controlToken) {
+        // Constant-time compare so a sibling window's release token can't be guessed
+        // from timing. (A2-4.)
+        if (!constantTimeEquals(providedToken, this.controlToken)) {
             this.sendJson(res, 403, { ok: false, error: "Invalid auth sync control token." }, false);
             return;
         }
@@ -721,15 +725,27 @@ class AuthSyncServer implements vscode.Disposable {
             if (probe.kind === "free") {
                 leetCodeChannel.appendLine(`[auth-sync] No live auth sync owner found. Trying to become owner on port ${serverSettings.port}.`);
                 await this.enqueue(() => this.startInternal());
-            } else if (probe.kind === "authSync") {
-                this.mode = "observer";
-                this.port = serverSettings.port;
-                this.lastConflict = undefined;
-                this.observedOwner = probe.health.owner;
             } else {
-                this.mode = "conflict";
-                this.port = serverSettings.port;
-                this.observedOwner = undefined;
+                // This check runs off a timer, NOT through enqueue, so write the
+                // resulting mode/port/owner inside the queue too — otherwise a tick
+                // can clobber a concurrent start/stop/forceStart transition mid-flight.
+                // Re-check `local` inside the lock: we may have become the owner while
+                // probing, in which case there is nothing to downgrade. (A2-11.)
+                await this.enqueue(async () => {
+                    if (this.mode === "local") {
+                        return;
+                    }
+                    if (probe.kind === "authSync") {
+                        this.mode = "observer";
+                        this.port = serverSettings.port;
+                        this.lastConflict = undefined;
+                        this.observedOwner = probe.health.owner;
+                    } else {
+                        this.mode = "conflict";
+                        this.port = serverSettings.port;
+                        this.observedOwner = undefined;
+                    }
+                });
             }
         } finally {
             this.observerCheckInFlight = false;
@@ -757,13 +773,26 @@ class AuthSyncServer implements vscode.Disposable {
         });
     }
 
+    // Picks up auth syncs performed by the OWNER window (which bumps the shared
+    // lastSyncedAt). The owner fires onDidSync inline in handleRequest; observer
+    // windows only see the change here, so re-emit onDidSync on a genuine advance
+    // so their status-bar tooltip and open profile "Session Sync" card refresh on
+    // a remote sync instead of reading stale until the next local action. Runs off
+    // the observer timer, so the refresh lands within one observer-check interval.
+    // (A2-8.)
     private observeSharedAuthSyncState(): void {
         const lastSyncedAt: number | undefined = globalState.getAuthSyncLastSyncedAt();
         if (!lastSyncedAt || lastSyncedAt === this.lastObservedAuthSyncAt) {
             return;
         }
 
+        const hadPreviousObservation: boolean = this.lastObservedAuthSyncAt !== undefined;
         this.lastObservedAuthSyncAt = lastSyncedAt;
+        // Skip the very first hydrate (nothing changed from the user's view yet);
+        // emit only on a real subsequent advance.
+        if (hadPreviousObservation) {
+            this.onDidSyncEmitter.fire();
+        }
     }
 
     private async writeOwnerHeartbeat(): Promise<void> {
@@ -1021,6 +1050,21 @@ class AuthSyncServer implements vscode.Disposable {
             heartbeatAt: owner.heartbeatAt,
         };
     }
+}
+
+// Length-aware constant-time string compare. timingSafeEqual throws on unequal
+// lengths, so guard that first (the early length check leaks only length, not
+// content). Used for the auth-sync secret and the port-release control token.
+function constantTimeEquals(provided: string | undefined, expected: string): boolean {
+    if (typeof provided !== "string") {
+        return false;
+    }
+    const providedBuffer: Buffer = Buffer.from(provided);
+    const expectedBuffer: Buffer = Buffer.from(expected);
+    if (providedBuffer.length !== expectedBuffer.length) {
+        return false;
+    }
+    return crypto.timingSafeEqual(providedBuffer, expectedBuffer);
 }
 
 function createAuthSyncRequestError(statusCode: number, message: string): IAuthSyncRequestError {

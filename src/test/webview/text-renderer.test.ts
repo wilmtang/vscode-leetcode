@@ -40,6 +40,13 @@ describe("renderDescriptionHtml", () => {
         assert.ok(html.indexOf("onerror") < 0, "event handler attribute should be removed");
     });
 
+    it("neutralizes javascript: and file: URLs in href/src (A2-6)", () => {
+        const js: string = renderDescriptionHtml(`<a href="javascript:alert(1)">x</a>`);
+        assert.ok(js.indexOf("javascript:") < 0, "javascript: URL should be neutralized");
+        const file: string = renderDescriptionHtml(`<a href="file://attacker-host/share">x</a>`);
+        assert.ok(file.indexOf("file:") < 0, "file: URL should be neutralized");
+    });
+
     it("keeps LeetCode iframes but drops foreign ones", () => {
         const kept: string = renderDescriptionHtml(`<iframe src="https://leetcode.com/playground/x/shared"></iframe>`);
         assert.ok(kept.indexOf("<iframe") >= 0, "LeetCode iframe should be preserved");

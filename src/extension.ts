@@ -54,7 +54,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }));
 
         leetCodeTreeDataProvider.initialize(context);
-        globalState.initialize(context);
+        // Must complete before any sign-in path or the auth-sync server runs: it
+        // hydrates the keychain-backed cookie/header cache (and migrates any legacy
+        // plaintext credentials) that getCookie()/createHeaders() read synchronously.
+        await globalState.initialize(context);
 
         context.subscriptions.push(
             leetCodeStatusBarController,

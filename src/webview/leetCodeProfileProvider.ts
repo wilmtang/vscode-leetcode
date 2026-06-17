@@ -112,6 +112,16 @@ class LeetCodeProfileProvider extends LeetCodeWebview {
         return { title, viewColumn: ViewColumn.One };
     }
 
+    // The base class rebuilds the entire webview HTML on any `markdown.*` config
+    // change. For the static preview/solution panels that's fine, but this panel
+    // renders progressively — open() paints skeletons and each section is filled
+    // later via postMessage — so a rebuild would revert every loaded section to a
+    // skeleton with no re-fetch. This panel uses none of the markdown styling, so
+    // suppress the rebuild entirely. (A2-7.)
+    protected async onDidChangeConfiguration(): Promise<void> {
+        // Intentionally a no-op; see comment above.
+    }
+
     protected getWebviewContent(): string {
         if (!this.initial) {
             return this.emptyContent();

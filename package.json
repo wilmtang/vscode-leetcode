@@ -750,14 +750,6 @@
                         "scope": "application",
                         "description": "How often observer windows verify the auth sync listener through /health and try to take over when no live owner is present. Default: 60 seconds."
                     },
-                    "leetcode.authSync.ownerStaleAfterSeconds": {
-                        "type": "number",
-                        "default": 120,
-                        "minimum": 30,
-                        "maximum": 86400,
-                        "scope": "application",
-                        "description": "Legacy compatibility setting. Auth sync owner liveness is now verified through the local /health endpoint instead of this stale-heartbeat timeout."
-                    },
                     "leetcode.authSync.secret": {
                         "type": "string",
                         "default": "",

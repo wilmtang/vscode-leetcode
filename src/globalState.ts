@@ -3,12 +3,23 @@
 
 import * as vscode from "vscode";
 
-const CookieKey = "leetcode-cookie";
-const BrowserUserAgentKey = "leetcode-browser-user-agent";
-const BrowserRequestHeadersKey = "leetcode-browser-request-headers";
+// Non-secret keys live in the workspace/global Memento (plaintext SQLite). These
+// carry only public identity (username/avatar), timestamps, and local port-owner
+// bookkeeping — nothing that grants account access.
 const UserStatusKey = "leetcode-user-status";
 const AuthSyncLastSyncedAtKey = "leetcode-auth-sync-last-synced-at";
 const AuthSyncOwnerKey = "leetcode-auth-sync-owner";
+
+// Secret keys live in context.secrets (OS-keychain backed), NOT the Memento. The
+// LeetCode session cookie is a full account bearer, and the captured browser
+// request headers can include an Authorization header, so both are credentials
+// and must not sit in plaintext on disk. (Audit 2 / A2-1.) These same names were
+// previously stored in the Memento; initialize() migrates any legacy plaintext
+// value into the keychain and deletes the old copy so upgrades don't sign out.
+const CookieSecretKey = "leetcode-cookie";
+const BrowserUserAgentSecretKey = "leetcode-browser-user-agent";
+const BrowserRequestHeadersSecretKey = "leetcode-browser-request-headers";
+const SECRET_KEYS: string[] = [CookieSecretKey, BrowserUserAgentSecretKey, BrowserRequestHeadersSecretKey];
 
 export type UserDataType = {
     isSignedIn: boolean;
@@ -36,31 +47,58 @@ export interface IBrowserRequestHeaders {
 class GlobalState {
     private context: vscode.ExtensionContext;
     private _state: vscode.Memento;
+    // In-memory mirror of the keychain-backed secrets. SecretStorage is async-only,
+    // but the cookie/header getters are called from many synchronous code paths
+    // (createHeaders, getRequiredCookie, …). Hydrating a cache at activation and
+    // refreshing it on every write — and on cross-window keychain changes — lets
+    // those getters stay synchronous without holding credentials in the Memento.
+    private cookieCache: string | undefined;
+    private browserUserAgentCache: string | undefined;
+    private browserRequestHeadersCache: IBrowserRequestHeaders | undefined;
 
-    public initialize(context: vscode.ExtensionContext): void {
+    // Must be awaited before any cookie/header read. extension.ts awaits this
+    // before wiring sign-in or starting the auth-sync server.
+    public async initialize(context: vscode.ExtensionContext): Promise<void> {
         this.context = context;
         this._state = this.context.globalState;
+        await this.migrateLegacyPlaintextSecrets();
+        await this.hydrateSecretCache();
+        // A sibling VS Code window (or an external keychain edit) can rotate the
+        // synced cookie; re-hydrate so this window's cache never serves a stale
+        // credential after another window re-syncs. (Replaces the implicit
+        // freshness the old Memento getter had by reading on every call.)
+        context.subscriptions.push(
+            context.secrets.onDidChange((event: vscode.SecretStorageChangeEvent) => {
+                if (SECRET_KEYS.indexOf(event.key) >= 0) {
+                    void this.hydrateSecretCache();
+                }
+            }),
+        );
     }
 
-    public setCookie(cookie: string): any {
-        return this._state.update(CookieKey, cookie);
+    public setCookie(cookie: string): Thenable<void> {
+        this.cookieCache = cookie;
+        return this.context.secrets.store(CookieSecretKey, cookie);
     }
     public getCookie(): string | undefined {
-        return this._state.get(CookieKey);
+        return this.cookieCache;
     }
 
-    public setBrowserUserAgent(userAgent: string): any {
-        return this._state.update(BrowserUserAgentKey, userAgent);
+    public setBrowserUserAgent(userAgent: string): Thenable<void> {
+        this.browserUserAgentCache = userAgent;
+        return this.context.secrets.store(BrowserUserAgentSecretKey, userAgent);
     }
     public getBrowserUserAgent(): string | undefined {
-        return this._state.get(BrowserUserAgentKey);
+        return this.browserUserAgentCache;
     }
 
-    public setBrowserRequestHeaders(headers: IBrowserRequestHeaders): any {
-        return this._state.update(BrowserRequestHeadersKey, headers);
+    public setBrowserRequestHeaders(headers: IBrowserRequestHeaders): Thenable<void> {
+        this.browserRequestHeadersCache = headers;
+        // SecretStorage holds strings only, so the header map is JSON-encoded.
+        return this.context.secrets.store(BrowserRequestHeadersSecretKey, JSON.stringify(headers));
     }
     public getBrowserRequestHeaders(): IBrowserRequestHeaders | undefined {
-        return this._state.get(BrowserRequestHeadersKey);
+        return this.browserRequestHeadersCache;
     }
 
     public setAuthSyncLastSyncedAt(timestamp: number): Thenable<void> {
@@ -102,18 +140,68 @@ class GlobalState {
         return this._state.update(AuthSyncOwnerKey, undefined);
     }
 
-    public removeCookie(): void {
-        this._state.update(CookieKey, undefined);
-        this._state.update(BrowserUserAgentKey, undefined);
-        this._state.update(BrowserRequestHeadersKey, undefined);
+    // Clears the synced credentials (cache + keychain). Returns a promise so
+    // callers that need the secret gone before continuing can await it; the
+    // legacy Memento copies are best-effort cleared too in case migration was
+    // skipped on this machine.
+    public removeCookie(): Thenable<void> {
+        return this.clearSecrets();
     }
 
-    public removeAll(): void {
-        this._state.update(CookieKey, undefined);
-        this._state.update(BrowserUserAgentKey, undefined);
-        this._state.update(BrowserRequestHeadersKey, undefined);
-        this._state.update(UserStatusKey, undefined);
-        this._state.update(AuthSyncLastSyncedAtKey, undefined);
+    public removeAll(): Thenable<void> {
+        void this._state.update(UserStatusKey, undefined);
+        void this._state.update(AuthSyncLastSyncedAtKey, undefined);
+        return this.clearSecrets();
+    }
+
+    private clearSecrets(): Thenable<void> {
+        this.cookieCache = undefined;
+        this.browserUserAgentCache = undefined;
+        this.browserRequestHeadersCache = undefined;
+        // Best-effort clear of any leftover legacy plaintext values as well.
+        for (const key of SECRET_KEYS) {
+            void this._state.update(key, undefined);
+        }
+        return Promise.all(SECRET_KEYS.map((key: string) => this.context.secrets.delete(key))).then(() => undefined);
+    }
+
+    // Loads the keychain values into the synchronous cache. Bad JSON in the
+    // headers blob is tolerated (treated as absent) so one corrupt entry can't
+    // wedge activation.
+    private async hydrateSecretCache(): Promise<void> {
+        this.cookieCache = await this.context.secrets.get(CookieSecretKey) || undefined;
+        this.browserUserAgentCache = await this.context.secrets.get(BrowserUserAgentSecretKey) || undefined;
+        const rawHeaders: string | undefined = await this.context.secrets.get(BrowserRequestHeadersSecretKey);
+        this.browserRequestHeadersCache = this.parseHeaders(rawHeaders);
+    }
+
+    private parseHeaders(raw: string | undefined): IBrowserRequestHeaders | undefined {
+        if (!raw) {
+            return undefined;
+        }
+        try {
+            const parsed: unknown = JSON.parse(raw);
+            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as IBrowserRequestHeaders : undefined;
+        } catch (error) {
+            return undefined;
+        }
+    }
+
+    // One-time move of credentials written by pre-A2-1 builds (plaintext Memento)
+    // into the keychain, then delete the plaintext copy. Runs every activation but
+    // no-ops once the Memento keys are gone.
+    private async migrateLegacyPlaintextSecrets(): Promise<void> {
+        for (const key of SECRET_KEYS) {
+            const legacy: unknown = this._state.get(key);
+            if (legacy === undefined || legacy === null) {
+                continue;
+            }
+            const value: string = typeof legacy === "string" ? legacy : JSON.stringify(legacy);
+            if ((await this.context.secrets.get(key)) === undefined) {
+                await this.context.secrets.store(key, value);
+            }
+            await this._state.update(key, undefined);
+        }
     }
 }
 

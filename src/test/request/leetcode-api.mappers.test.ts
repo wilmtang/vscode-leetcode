@@ -98,6 +98,11 @@ describe("leetcode-api mappers", () => {
             const problem = mapCnProblem(cnQuestionItemPercentPassThrough, true);
             assert.strictEqual(problem.acRate, 73);
         });
+
+        it("carries the internal questionId like the other mappers (A2-10)", () => {
+            const problem = mapCnProblem({ ...cnQuestionItem, questionId: "12" }, true);
+            assert.strictEqual(problem.questionId, "12");
+        });
     });
 
     describe("mapQuestionDetail", () => {

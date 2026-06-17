@@ -223,13 +223,18 @@ export async function requestJson<T>(config: AxiosRequestConfig, context: IReque
         throw new Error(`node/axios request failed (${context.label}): ${message}`);
     }
 
-    if (response.status === 401 || response.status === 403) {
-        if (isCloudflareChallenge(response.data)) {
-            leetCodeChannel.appendLine(`[http] Failure cause: Cloudflare challenge page from node/axios (${context.label}, HTTP ${response.status}).`);
-            leetCodeChannel.appendLine(`[http] Request mode: curl (${context.label}).`);
-            return requestJsonWithCurl<T>(config, context);
-        }
+    // Cloudflare commonly serves its "Just a moment..." challenge with 503 (and
+    // occasionally 429 *or even 200*), not only 401/403. Detect it BEFORE any
+    // status check — a 200 challenge would otherwise be handed back as if it were
+    // real JSON and blow up downstream at parse time — so the curl fallback (which
+    // replays the browser user-agent/headers) always gets a chance to pass it. (A2-9.)
+    if (isCloudflareChallenge(response.data)) {
+        leetCodeChannel.appendLine(`[http] Failure cause: Cloudflare challenge page from node/axios (${context.label}, HTTP ${response.status}).`);
+        leetCodeChannel.appendLine(`[http] Request mode: curl (${context.label}).`);
+        return requestJsonWithCurl<T>(config, context);
+    }
 
+    if (response.status === 401 || response.status === 403) {
         leetCodeChannel.appendLine(`[http] Failure cause: LeetCode rejected node/axios request (${context.label}, HTTP ${response.status}).`);
         throw new DirectApiUnsupportedError(`Direct LeetCode request was rejected by node/axios (${context.label}): HTTP ${response.status}${summarizeResponseData(response.data)}.`, false);
     }
@@ -291,8 +296,24 @@ function executeCurl(config: AxiosRequestConfig): Promise<ICurlResponse> {
 
         const method: string = (config.method || "GET").toString().toUpperCase();
         const timeoutSeconds: number = Math.ceil((typeof config.timeout === "number" && config.timeout > 0 ? config.timeout : DEFAULT_TIMEOUT_MS) / 1000);
-        const args: string[] = ["-sS", "-L", "--compressed", "-m", String(timeoutSeconds), "-w", `${CURL_STATUS_MARKER}%{http_code}`, "-X", method, url];
+
+        // Sensitive values — the session cookie, any Authorization header, and the
+        // request body — are passed through a curl config file on STDIN (`-K -`)
+        // rather than argv, so they never appear in the host process list
+        // (`ps aux`, `/proc/<pid>/cmdline`) where any local process could read
+        // them. Only the inert `-K -` is visible on the command line. (A2-5.)
         const headers: { [key: string]: unknown } = (config.headers || {}) as { [key: string]: unknown };
+        const configLines: string[] = [
+            "silent",                 // -sS: quiet, but still print transport errors
+            "show-error",
+            "location",               // -L: follow redirects
+            "compressed",
+            `max-time ${timeoutSeconds}`,
+            `request ${method}`,
+            `url ${curlConfigQuote(url)}`,
+            // %{http_code} is emitted after the body, behind a marker we split on.
+            `write-out ${curlConfigQuote(`${CURL_STATUS_MARKER}%{http_code}`)}`,
+        ];
 
         for (const key of Object.keys(headers)) {
             const value: unknown = headers[key];
@@ -301,20 +322,21 @@ function executeCurl(config: AxiosRequestConfig): Promise<ICurlResponse> {
             }
 
             if (key.toLowerCase() === "cookie") {
-                args.push("-b", value);
+                configLines.push(`cookie ${curlConfigQuote(value)}`);
             } else if (value === "") {
-                args.push("-H", `${key};`);
+                // Send the header present-but-empty: curl drops `Key:` but keeps `Key;`.
+                configLines.push(`header ${curlConfigQuote(`${key};`)}`);
             } else {
-                args.push("-H", `${key}: ${value}`);
+                configLines.push(`header ${curlConfigQuote(`${key}: ${value}`)}`);
             }
         }
 
         if (config.data !== undefined && method !== "GET") {
             const body: string = typeof config.data === "string" ? config.data : JSON.stringify(config.data);
-            args.push("--data-raw", body);
+            configLines.push(`data-raw ${curlConfigQuote(body)}`);
         }
 
-        cp.execFile("curl", args, { maxBuffer: 10 * 1024 * 1024 }, (error: cp.ExecException | null, stdout: string, stderr: string) => {
+        const child: cp.ChildProcess = cp.execFile("curl", ["-K", "-"], { maxBuffer: 10 * 1024 * 1024 }, (error: cp.ExecException | null, stdout: string, stderr: string) => {
             if (error) {
                 reject(new Error(`curl request failed: ${stderr || error.message}`));
                 return;
@@ -330,7 +352,29 @@ function executeCurl(config: AxiosRequestConfig): Promise<ICurlResponse> {
             const status: number = parseInt(stdout.slice(markerIndex + CURL_STATUS_MARKER.length).trim(), 10);
             resolve({ body, status });
         });
+
+        if (!child.stdin) {
+            reject(new Error("Unable to pass the curl config on stdin."));
+            return;
+        }
+        // If curl exits before reading all of stdin, the resulting EPIPE is benign —
+        // the real outcome is reported through the execFile callback above.
+        child.stdin.on("error", () => { /* ignore broken-pipe on early curl exit */ });
+        child.stdin.end(`${configLines.join("\n")}\n`);
     });
+}
+
+// Quote a value for a curl `-K` config file. Inside double quotes curl honours
+// backslash escapes, so backslashes and quotes must be escaped, and CR/LF are
+// encoded so a header or body value can never break out onto its own config line
+// (a config-injection guard). curl decodes `\n`/`\r` back to real bytes.
+function curlConfigQuote(value: string): string {
+    const escaped: string = value
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, "\\\"")
+        .replace(/\r/g, "\\r")
+        .replace(/\n/g, "\\n");
+    return `"${escaped}"`;
 }
 
 // ---------------------------------------------------------------------------

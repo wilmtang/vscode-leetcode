@@ -13,6 +13,39 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   `LeetCode: Show User Profile`. When signed out, the status bar click opens the
   sign-in picker instead of being a dead-end.
 
+### Security
+- **Credentials moved to the OS keychain (audit 2 / A2-1).** The synced LeetCode
+  session cookie, browser user-agent, and captured request headers are now stored
+  in VS Code `SecretStorage` instead of plaintext `globalState`. Existing
+  plaintext values are migrated into the keychain on first launch and the old
+  copies deleted, so upgrades don't sign you out.
+- **Constant-time secret comparison (A2-4).** The auth-sync shared secret and the
+  port-release control token are now compared with `crypto.timingSafeEqual`.
+- **curl fallback no longer leaks the cookie via argv (A2-5).** The Cloudflare
+  curl fallback passes the cookie, auth headers, and request body through a config
+  file on stdin (`curl -K -`) instead of command-line arguments, so they no longer
+  appear in the host process list.
+- **Untrusted-markup hardening (A2-6).** Dropped the `file:` link allowance from
+  the markdown renderer and neutralize `javascript:`/`vbscript:`/`file:` URLs in
+  rendered href/src — closes a phishing / NTLM-leak vector in community solutions.
+
+### Fixed
+- Cloudflare "Just a moment…" challenges served with a **200/503** status now
+  correctly trigger the curl fallback instead of being parsed as real data (A2-9).
+- The profile panel no longer blanks its already-loaded sections when a
+  `markdown.*` setting changes while it's open (A2-7).
+- Observer VS Code windows now refresh the status-bar tooltip and the open
+  profile "Session Sync" card when another window performs an auth sync (A2-8).
+- The auth-sync observer check now serializes its state writes with start/stop
+  transitions, preventing a transient wrong status under concurrency (A2-11).
+- `mapCnProblem` now carries the internal `questionId`, matching the other problem
+  mappers (A2-10; `leetcode.cn` remains untested overall).
+
+### Changed
+- Removed the unused `leetcode.authSync.ownerStaleAfterSeconds` setting (A2-13).
+- Documented intentional design decisions (open-by-default local sync endpoint,
+  `vscode://?cookie=` sign-in) in `AGENTS.md` so future audits don't re-flag them.
+
 ## [0.19.0]
 ### Changed
 - The extension now talks to LeetCode **directly over HTTP/GraphQL** using the synced browser cookie, instead of bundling and shelling out to `vsc-leetcode-cli`. **Node.js is no longer required** to run the extension.

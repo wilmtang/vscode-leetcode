@@ -113,7 +113,14 @@ class MarkdownEngine implements vscode.Disposable {
 
         this.addCodeBlockHighlight(md);
         this.addImageUrlCompletion(md);
-        this.addLinkValidator(md);
+        // NOTE: we intentionally keep markdown-it's DEFAULT validateLink (which
+        // blocks javascript:/vbscript:/data: links). Earlier code widened it to
+        // also allow file: URLs; that was removed because the only untrusted
+        // markdown rendered through this engine is the community-solution body,
+        // where a file: link is a phishing / NTLM-leak vector (e.g.
+        // file://attacker-host/share on Windows) with no legitimate use. The
+        // problem description is rendered as HTML via renderDescriptionHtml(), not
+        // through markdown-it, so nothing depends on file: support. (A2-6.)
         return md;
     }
 
@@ -149,13 +156,6 @@ class MarkdownEngine implements vscode.Disposable {
         };
     }
 
-    private addLinkValidator(md: MarkdownIt): void {
-        const validateLink: (link: string) => boolean = md.validateLink;
-        md.validateLink = (link: string): boolean => {
-            // support file:// protocal link
-            return validateLink(link) || link.startsWith("file:");
-        };
-    }
 }
 
 // tslint:disable-next-line: max-classes-per-file

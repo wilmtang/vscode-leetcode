@@ -56,9 +56,12 @@ export function sanitizeHtml(input: string): string {
     output = output.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "");
     output = output.replace(/<script\b[^>]*>/gi, "");
     output = output.replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, "");
-    // Strip inline event handlers (on*=...) and javascript: URLs.
+    // Strip inline event handlers (on*=...).
     output = output.replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-    output = output.replace(/(href|src)\s*=\s*("javascript:[^"]*"|'javascript:[^']*')/gi, "$1=\"#\"");
+    // Neutralize dangerous URL schemes in href/src: javascript:/vbscript: (script
+    // execution) and file: (a phishing / NTLM-leak vector in untrusted
+    // community-solution markup — see the markdownEngine validateLink note). (A2-6.)
+    output = output.replace(/(href|src)\s*=\s*("(?:javascript|vbscript|file):[^"]*"|'(?:javascript|vbscript|file):[^']*')/gi, "$1=\"#\"");
     // Only keep iframes pointing at LeetCode (embedded explainers); drop the rest.
     output = output.replace(/<iframe\b[^>]*>(?:[\s\S]*?<\/iframe\s*>)?/gi, (tag: string): string => {
         const srcMatch: RegExpMatchArray | null = tag.match(/\bsrc\s*=\s*"([^"]*)"|\bsrc\s*=\s*'([^']*)'/i);
