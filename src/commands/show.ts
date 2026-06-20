@@ -11,7 +11,8 @@ import { leetCodeChannel } from "../leetCodeChannel";
 import { leetCodeManager } from "../leetCodeManager";
 import { getQuestionDetail, getTopSolutionArticle, ILeetCodeCodeSnippet, ILeetCodeQuestionDetail, ILeetCodeSolutionArticle } from "../request/leetcode-api";
 import { ISolutionFileMeta, parseSolutionFile } from "../request/leetcode-http";
-import { Endpoint, getUrl, IProblem, IQuickItemEx, languages, PREMIUM_URL_CN, PREMIUM_URL_GLOBAL, ProblemState } from "../shared";
+import { Endpoint, getUrl, IProblem, IQuickItemEx, languages, PREMIUM_URL_CN, PREMIUM_URL_GLOBAL } from "../shared";
+import { parseProblemsToPicks } from "../utils/problemPickUtils";
 import { genFileExt, genFileName, getNodeIdFromFile } from "../utils/problemUtils";
 import { generateSolutionFileContent } from "../utils/solutionFileGenerator";
 import * as settingUtils from "../utils/settingUtils";
@@ -316,26 +317,6 @@ async function generateProblemFile(
 async function showDescriptionView(node: IProblem, detail?: ILeetCodeQuestionDetail): Promise<void> {
     return previewProblem(node, vscode.workspace.getConfiguration("leetcode").get<boolean>("enableSideMode", true), detail);
 }
-function parseProblemsToPicks(problems: IProblem[]): Array<IQuickItemEx<IProblem>> {
-    return problems.map((problem: IProblem) => ({
-        label: `${parseProblemDecorator(problem.state, problem.locked)}${problem.id}.${problem.name}`,
-        description: "",
-        detail: `AC rate: ${problem.passRate}, Difficulty: ${problem.difficulty}`,
-        value: problem,
-    }));
-}
-
-function parseProblemDecorator(state: ProblemState, locked: boolean): string {
-    switch (state) {
-        case ProblemState.AC:
-            return "$(check) ";
-        case ProblemState.NotAC:
-            return "$(x) ";
-        default:
-            return locked ? "$(lock) " : "";
-    }
-}
-
 async function resolveRelativePath(relativePath: string, node: IProblem, selectedLanguage: string): Promise<string> {
     let tag: string = "";
     if (/\$\{tag\}/i.test(relativePath)) {
