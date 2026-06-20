@@ -496,7 +496,9 @@ function renderBeatsPill(label: string, percentage: number | undefined): string 
     if (typeof percentage !== "number") {
         return "";
     }
-    return `<span class="pill">Beats ${escapeHtml(label)}: ${percentage.toFixed(1)}%</span>`;
+    const top: string = (100 - percentage).toFixed(1);
+    const tooltip: string = `Percentile rank by problems solved: you have solved more ${label} problems than ${percentage.toFixed(1)}% of LeetCode users, placing you in the top ${top}%. Reflects how many ${label} problems you have solved, not your solution's speed or memory.`;
+    return `<span class="pill" title="${escapeAttribute(tooltip)}">${escapeHtml(label)}: top ${top}%</span>`;
 }
 
 function formatRanking(ranking: number | undefined): string {

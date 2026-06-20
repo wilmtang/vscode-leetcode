@@ -56,7 +56,7 @@ hook that blocks any staged `*.local.json`, anything under `.secrets/`, or any
 diff containing a `LEETCODE_SESSION` token:
 
 ```bash
-npm run setup:git-hooks
+npm run local -- hooks
 ```
 
 This sets `core.hooksPath` to `scripts/git-hooks` for this repo. Bypass a false

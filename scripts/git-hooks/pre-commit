@@ -3,7 +3,7 @@
 
 // Defense-in-depth guard against committing the local LeetCode auth fixture or
 // any cookie containing a LEETCODE_SESSION token. Opt in per-clone with:
-//   npm run setup:git-hooks
+//   npm run local -- hooks
 // Bypass a false positive with: git commit --no-verify
 
 const { execSync } = require("child_process");

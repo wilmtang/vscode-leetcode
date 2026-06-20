@@ -106,8 +106,17 @@ workflow still validates and uploads a VSIX artifact without that approval.
 ## Release Flow
 
 1. Update `package.json` version and `CHANGELOG.md`.
-2. Merge the release commit to `main`.
-3. Push a matching VS Code extension tag:
+2. Run the local VS Code release check:
+
+```bash
+npm run release:vscode:local
+```
+
+This lints the extension and packages `dist/vscode-leetcode-auth-sync.vsix`,
+matching the validation gates used by the GitHub Actions release workflow.
+
+3. Merge the release commit to `main`.
+4. Push a matching VS Code extension tag:
 
 ```bash
 git tag vscode-extension-v$(node -p "require('./package.json').version")
@@ -130,7 +139,7 @@ The Visual Studio Marketplace publisher hub can upload a packaged VSIX directly
 from the publisher page:
 
 ```bash
-npm run build -- --out dist/vscode-leetcode-auth-sync.vsix
+npm run release:vscode:local
 ```
 
 Then open:
@@ -146,5 +155,5 @@ GitHub Actions automation. Automated release tags still need `VSCE_PAT`.
 To publish the same packaged VSIX to Open VSX manually, run:
 
 ```bash
-OVSX_PAT=<open-vsx-token> npm run ovsx-publish -- dist/vscode-leetcode-auth-sync.vsix
+OVSX_PAT=<open-vsx-token> npm run publish:vscode:open-vsx -- dist/vscode-leetcode-auth-sync.vsix
 ```

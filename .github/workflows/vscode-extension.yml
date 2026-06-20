@@ -114,9 +114,9 @@ jobs:
       - name: Publish VSIX to VS Code Marketplace
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npm run vs-publish -- --packagePath "$VSIX_PATH" --skip-duplicate
+        run: npm run publish:vscode:marketplace -- --packagePath "$VSIX_PATH" --skip-duplicate
 
       - name: Publish VSIX to Open VSX Registry
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: npm run ovsx-publish -- "$VSIX_PATH" --skip-duplicate
+        run: npm run publish:vscode:open-vsx -- "$VSIX_PATH" --skip-duplicate

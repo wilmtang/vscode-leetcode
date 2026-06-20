@@ -162,7 +162,7 @@ npm ci --replace-registry-host=always
 Run the extension in a VS Code Extension Development Host:
 
 ```bash
-npm run auth-sync:dev:vscode
+npm run local -- vscode:dev
 ```
 
 That compiles TypeScript, opens a new VS Code window with this checkout as the extension under development, and starts the auth-sync listener after activation.
@@ -176,7 +176,7 @@ Useful contributor commands in the development host:
 To test a packaged local install instead of an Extension Development Host:
 
 ```bash
-npm run auth-sync:install:vscode
+npm run local -- vscode:install
 ```
 
 This builds `dist/vscode-leetcode-auth-sync.vsix`, uninstalls the old stock/local extension IDs if present, installs the VSIX with the `code` CLI, and asks you to reload VS Code.
@@ -188,7 +188,7 @@ After changing TypeScript:
 1. Recompile with `npm run compile`, or keep `npm run watch` running in another terminal.
 2. In the Extension Development Host, run `Developer: Reload Window`.
 
-If you used `npm run auth-sync:install:vscode`, rerun that install command after code changes, then reload the normal VS Code window with `Developer: Reload Window`.
+If you used `npm run local -- vscode:install`, rerun that install command after code changes, then reload the normal VS Code window with `Developer: Reload Window`.
 
 If only auth-sync settings changed, use `LeetCode: Restart Browser Auth Sync Server` or change the setting and let the extension restart the listener.
 
@@ -197,13 +197,13 @@ If only auth-sync settings changed, use `LeetCode: Restart Browser Auth Sync Ser
 Start Chrome or Chromium with the unpacked browser extension and a disposable profile:
 
 ```bash
-npm run auth-sync:dev:chrome
+npm run local -- chrome:dev
 ```
 
 To test against your current Chrome user-data directory:
 
 ```bash
-npm run auth-sync:dev:chrome:current
+npm run local -- chrome:dev-current
 ```
 
 Quit Chrome first when using the current-profile script. If Chrome is already running, it can ignore the `--load-extension` flag.
@@ -243,8 +243,8 @@ Reload the browser extension after changes to `browser-extension/background.js`,
 
 ### End-to-End Local Test
 
-1. Start VS Code locally with `npm run auth-sync:dev:vscode`.
-2. Start the browser extension with `npm run auth-sync:dev:chrome`, or load it manually.
+1. Start VS Code locally with `npm run local -- vscode:dev`.
+2. Start the browser extension with `npm run local -- chrome:dev`, or load it manually.
 3. Sign in to `https://leetcode.com` in that browser profile.
 4. In VS Code, choose `LeetCode: Sign In`, then `Auto Cookie Sync`.
 5. In the browser extension popup, click `Expire now`, then open or refresh any `leetcode.com` page.
@@ -262,18 +262,20 @@ For the full local workflow and troubleshooting notes, see [docs/auth-sync-local
 ### Contributor Scripts
 
 ```bash
+npm run scripts:help
 npm run compile
 npm run watch
 npm run lint
-npm run auth-sync:dev:vscode
-npm run auth-sync:install:vscode
-npm run auth-sync:dev:chrome
-npm run auth-sync:dev:chrome:current
-npm run auth-sync:paths
-npm run auth-sync:icons
+npm run local -- vscode:dev
+npm run local -- vscode:install
+npm run local -- chrome:dev
+npm run local -- chrome:dev-current
+npm run local -- paths
+npm run local -- icons
 npm run auth-sync:lint:firefox
 npm run auth-sync:build:firefox
 npm run auth-sync:build:chrome
+npm run release:vscode:local
 ```
 
 ## Maintainer Publishing
@@ -283,10 +285,12 @@ The VS Code extension and browser extension use separate release lanes.
 VS Code Marketplace releases are handled by `.github/workflows/vscode-extension.yml` and use `vscode-extension-v*` tags:
 
 ```bash
+npm run release:vscode:local
 git tag vscode-extension-v0.18.8
 git push origin vscode-extension-v0.18.8
 ```
 
+The local release run lints and packages the VSIX before the tag is pushed.
 The workflow verifies that the tag matches `package.json`. Add `VSCE_PAT` to the `vscode-marketplace` GitHub Actions environment; the token must be an Azure DevOps Personal Access Token with Marketplace `Manage` scope for the publisher in `package.json`. See [docs/vscode-marketplace-publishing.md](docs/vscode-marketplace-publishing.md).
 
 Browser extension releases use `browser-extension-v*` tags for both Firefox and Chrome:

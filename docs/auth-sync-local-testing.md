@@ -60,13 +60,13 @@ npm ci --replace-registry-host=always
 Start VS Code in extension-development mode:
 
 ```bash
-npm run auth-sync:dev:vscode
+npm run local -- vscode:dev
 ```
 
 Start Chrome with the unpacked browser extension loaded in a disposable test profile:
 
 ```bash
-npm run auth-sync:dev:chrome
+npm run local -- chrome:dev
 ```
 
 Then:
@@ -85,7 +85,7 @@ The auth sync listener starts automatically when the VS Code extension activates
 For local development, use:
 
 ```bash
-npm run auth-sync:dev:vscode
+npm run local -- vscode:dev
 ```
 
 That command compiles the extension and opens VS Code with this checkout as the extension-development path. The server listens on:
@@ -140,7 +140,7 @@ Owner liveness is decided by `GET /health`, not by the shared heartbeat record a
 For a real local install instead of an extension-development host, run:
 
 ```bash
-npm run auth-sync:install:vscode
+npm run local -- vscode:install
 ```
 
 This script:
@@ -159,7 +159,7 @@ Command Palette > Shell Command: Install 'code' command in PATH
 You can also point the script at a custom VS Code CLI:
 
 ```bash
-VSCODE_BIN=/absolute/path/to/code npm run auth-sync:install:vscode
+VSCODE_BIN=/absolute/path/to/code npm run local -- vscode:install
 ```
 
 After installation, reload VS Code and run:
@@ -175,7 +175,7 @@ LeetCode: Show Browser Auth Sync Status
 Use:
 
 ```bash
-npm run auth-sync:dev:chrome
+npm run local -- chrome:dev
 ```
 
 This opens Chrome or Chromium with:
@@ -187,7 +187,7 @@ This opens Chrome or Chromium with:
 If Chrome cannot be found, pass its path explicitly:
 
 ```bash
-CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm run auth-sync:dev:chrome
+CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm run local -- chrome:dev
 ```
 
 ### Automated Chrome Current Profile
@@ -195,7 +195,7 @@ CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm ru
 For local convenience, you can launch Chrome with your existing user-data directory and the unpacked extension:
 
 ```bash
-npm run auth-sync:dev:chrome:current
+npm run local -- chrome:dev-current
 ```
 
 This uses Chrome's last-used profile from the local `Local State` file when possible. If Chrome is already running, quit Chrome first; Chrome may route the command to the existing process and ignore `--load-extension`.
@@ -216,7 +216,7 @@ browser-extension/
 To print the absolute path:
 
 ```bash
-npm run auth-sync:paths
+npm run local -- paths
 ```
 
 Chrome uses the MV3 `background.service_worker` declaration from `browser-extension/manifest.json`. Firefox ignores the service worker declaration and uses the `background.scripts` declaration from the same manifest.
@@ -252,37 +252,37 @@ Expected result: the browser extension reports `Invalid auth sync secret.` and V
 ## Script Reference
 
 ```bash
-npm run auth-sync:dev:vscode
+npm run local -- vscode:dev
 ```
 
 Compile and open VS Code with this checkout as an extension-development host.
 
 ```bash
-npm run auth-sync:install:vscode
+npm run local -- vscode:install
 ```
 
 Compile, package a VSIX, and install it into VS Code.
 
 ```bash
-npm run auth-sync:dev:chrome
+npm run local -- chrome:dev
 ```
 
 Open Chrome or Chromium with the unpacked browser extension loaded in a disposable profile.
 
 ```bash
-npm run auth-sync:dev:chrome:current
+npm run local -- chrome:dev-current
 ```
 
 Open Chrome or Chromium with the unpacked browser extension loaded against the current Chrome user-data directory. Quit Chrome first for the flag to take effect.
 
 ```bash
-npm run auth-sync:paths
+npm run local -- paths
 ```
 
 Print useful local paths, including the browser extension path and VSIX output path.
 
 ```bash
-npm run auth-sync:icons
+npm run local -- icons
 ```
 
 Regenerate `browser-extension/icons/icon.svg` plus the 16, 32, 48, and 128 pixel PNG icons referenced by both manifests.
