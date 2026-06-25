@@ -70,7 +70,7 @@ If a browser store listing is not available for your browser yet, load `browser-
 (力扣) support is currently broken** in this fork — Favorites and Solutions do not
 work on `.cn` after the move to direct API calls (details in the **Switch
 Endpoint** section below and in
-[docs/post-migration-audit.md](docs/post-migration-audit.md)). Contributions to
+[docs/maintainer-guide.md](docs/maintainer-guide.md#current-caveats)). Contributions to
 restore `.cn` are very welcome. If you use `leetcode.cn`, or if web/manual login
 already works for your account, you can still use the existing `Web Authorization`
 or `LeetCode Cookie` login options.
@@ -257,7 +257,7 @@ You can also smoke-test the local listener:
 curl -i http://127.0.0.1:17899/health
 ```
 
-For the full local workflow and troubleshooting notes, see [docs/auth-sync-local-testing.md](docs/auth-sync-local-testing.md).
+For the full local workflow and troubleshooting notes, see [docs/maintainer-guide.md](docs/maintainer-guide.md#local-auth-sync-testing).
 
 ### Contributor Scripts
 
@@ -291,7 +291,7 @@ git push origin vscode-extension-v0.18.8
 ```
 
 The local release run lints and packages the VSIX before the tag is pushed.
-The workflow verifies that the tag matches `package.json`. Add `VSCE_PAT` to the `vscode-marketplace` GitHub Actions environment; the token must be an Azure DevOps Personal Access Token with Marketplace `Manage` scope for the publisher in `package.json`. See [docs/vscode-marketplace-publishing.md](docs/vscode-marketplace-publishing.md).
+The workflow verifies that the tag matches `package.json`. Add `VSCE_PAT` to the `vscode-marketplace` GitHub Actions environment; the token must be an Azure DevOps Personal Access Token with Marketplace `Manage` scope for the publisher in `package.json`. See [docs/maintainer-guide.md](docs/maintainer-guide.md#publishing).
 
 Browser extension releases use `browser-extension-v*` tags for both Firefox and Chrome:
 
@@ -356,7 +356,7 @@ Chrome publication is handled by `.github/workflows/chrome-extension.yml`. Build
   > `"Favorite"`, but `.cn` names it `"收藏"`) and **Solutions** (`.cn` uses a
   > different community-solutions API). Everything was validated only against
   > `leetcode.com`. **Contributions to restore `.cn` are very welcome** — please
-  > open a PR. See [docs/post-migration-audit.md](docs/post-migration-audit.md).
+  > open a PR. See [docs/maintainer-guide.md](docs/maintainer-guide.md#current-caveats).
 
 ---
 

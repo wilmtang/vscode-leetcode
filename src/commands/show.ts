@@ -121,16 +121,12 @@ export async function showSolution(input: LeetCodeNode | vscode.Uri): Promise<vo
         return;
     }
 
-    const language: string | undefined = await fetchProblemLanguage();
-    if (!language) {
-        return;
-    }
     try {
         const article: ILeetCodeSolutionArticle | undefined = await vscode.window.withProgress(
             { location: vscode.ProgressLocation.Notification },
             async (p: vscode.Progress<{ message?: string }>) => {
                 p.report({ message: "Fetching top voted solution from discussions..." });
-                return getTopSolutionArticle(target.titleSlug, language);
+                return getTopSolutionArticle(target.titleSlug);
             },
         );
         if (!article) {

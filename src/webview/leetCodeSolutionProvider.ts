@@ -7,7 +7,7 @@ import { getUrl } from "../shared";
 import { leetCodePreviewProvider } from "./leetCodePreviewProvider";
 import { ILeetCodeWebviewOption, LeetCodeWebview } from "./LeetCodeWebview";
 import { markdownEngine } from "./markdownEngine";
-import { extractMathPlaceholders, IMathExtraction, restoreMath, sanitizeHtml } from "./textRenderer";
+import { extractMathPlaceholders, IMathExtraction, restoreMath, sanitizeHtml, stripMarkdownHtmlComments } from "./textRenderer";
 
 class LeetCodeSolutionProvider extends LeetCodeWebview {
 
@@ -73,7 +73,7 @@ class LeetCodeSolutionProvider extends LeetCodeWebview {
     // math out first so markdown-it leaves it alone, render the markdown, sanitize
     // it, then splice the KaTeX-rendered math back in.
     private renderArticleBody(markdown: string): string {
-        const extracted: IMathExtraction = extractMathPlaceholders(markdown || "");
+        const extracted: IMathExtraction = extractMathPlaceholders(stripMarkdownHtmlComments(markdown || ""));
         const rendered: string = markdownEngine.render(extracted.text, { host: getUrl("base") });
         const sanitized: string = sanitizeHtml(rendered);
         return restoreMath(sanitized, extracted.math);

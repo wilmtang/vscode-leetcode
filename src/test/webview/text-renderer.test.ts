@@ -1,5 +1,5 @@
 import * as assert from "assert";
-import { renderDescriptionHtml } from "../../webview/textRenderer";
+import { renderDescriptionHtml, stripMarkdownHtmlComments } from "../../webview/textRenderer";
 
 // textRenderer only depends on katex (no vscode), so it runs under the offline
 // harness. These pin the two behaviours that matter: LaTeX gets rendered, and
@@ -57,5 +57,18 @@ describe("renderDescriptionHtml", () => {
     it("wraps <pre> blocks in <code> for highlighting", () => {
         const html: string = renderDescriptionHtml("<pre>nums = [2,7,11,15]</pre>");
         assert.ok(html.indexOf("<pre><code>") >= 0, "expected <pre><code> wrapping");
+    });
+});
+
+describe("stripMarkdownHtmlComments", () => {
+    it("drops standalone LeetCode editor-template comments", () => {
+        const markdown: string = stripMarkdownHtmlComments([
+            "# Intuition",
+            "<!-- Describe your first thoughts on how to solve this problem. -->",
+            "Use a hash map.",
+        ].join("\n"));
+
+        assert.ok(markdown.indexOf("Describe your first thoughts") < 0, "template comment should be removed");
+        assert.ok(markdown.indexOf("Use a hash map.") >= 0, "solution text should be preserved");
     });
 });

@@ -30,6 +30,9 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   rendered href/src — closes a phishing / NTLM-leak vector in community solutions.
 
 ### Fixed
+- `Show Top Voted Solution` now fetches the overall top-voted community solution
+  instead of filtering by the configured/default language, and hides LeetCode's
+  markdown-template HTML comments from the rendered solution body.
 - Cloudflare "Just a moment…" challenges served with a **200/503** status now
   correctly trigger the curl fallback instead of being parsed as real data (A2-9).
 - The profile panel no longer blanks its already-loaded sections when a

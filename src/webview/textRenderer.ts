@@ -49,6 +49,13 @@ export function restoreMath(input: string, math: string[]): string {
     });
 }
 
+export function stripMarkdownHtmlComments(input: string): string {
+    return input
+        .split(/\r?\n/)
+        .filter((line: string) => !/^\s*<!--[\s\S]*-->\s*$/.test(line))
+        .join("\n");
+}
+
 // Defense-in-depth alongside the webview CSP: remove the obvious script-injection
 // vectors from the untrusted description/solution markup.
 export function sanitizeHtml(input: string): string {

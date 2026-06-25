@@ -34,7 +34,7 @@ const DIFFICULTIES: ReadonlyArray<string> = ["Easy", "Medium", "Hard"];
 
 describe("leetcode-api (live)", () => {
     if (!fixture) {
-        it.skip(`needs an auth fixture at ${getAuthFixturePath()} — see src/test/integration/README.md`);
+        it.skip(`needs an auth fixture at ${getAuthFixturePath()} — see docs/maintainer-guide.md`);
         return;
     }
 
@@ -198,7 +198,7 @@ describe("leetcode-api (live)", () => {
 
         before(async function (): Promise<void> {
             this.timeout(30 * 1000);
-            article = await getTopSolutionArticle("two-sum", "python3");
+            article = await getTopSolutionArticle("two-sum");
         });
 
         it("returns a readable top-voted community solution for two-sum", () => {
@@ -210,12 +210,11 @@ describe("leetcode-api (live)", () => {
             assert.ok(article!.url.indexOf("/solutions/") >= 0, `expected a solutions URL, got ${article!.url}`);
         });
 
-        it("falls back to the most-voted overall when the language has no solutions", async function (): Promise<void> {
+        it("returns the most-voted overall article without a language filter", async function (): Promise<void> {
             this.timeout(30 * 1000);
-            // No solution is tagged with a bogus language, so this exercises the
-            // unfiltered fallback rather than returning an empty state.
-            const fallback = await getTopSolutionArticle("two-sum", "cobol");
-            assert.ok(fallback, "expected the unfiltered fallback to still return a solution");
+            const overall = await getTopSolutionArticle("two-sum");
+            assert.ok(overall, "expected the unfiltered top-voted article to return a solution");
+            assert.strictEqual(overall!.topicId, article!.topicId, "repeated top-voted fetch returned a different article");
         });
     });
 
@@ -239,16 +238,22 @@ describe("leetcode-api (live)", () => {
             const slug = "two-sum";
             const wasFavorite = (await getFavoriteProblemSlugs()).has(slug);
 
-            if (wasFavorite) {
-                await removeFavoriteQuestion(slug);
-                assert.ok(!(await getFavoriteProblemSlugs()).has(slug), "remove should drop two-sum");
-                await addFavoriteQuestion(slug);
-                assert.ok((await getFavoriteProblemSlugs()).has(slug), "add should restore two-sum");
-            } else {
-                await addFavoriteQuestion(slug);
-                assert.ok((await getFavoriteProblemSlugs()).has(slug), "add should include two-sum");
-                await removeFavoriteQuestion(slug);
-                assert.ok(!(await getFavoriteProblemSlugs()).has(slug), "remove should drop two-sum");
+            try {
+                if (wasFavorite) {
+                    await removeFavoriteQuestion(slug);
+                    assert.ok(!(await getFavoriteProblemSlugs()).has(slug), "remove should drop two-sum");
+                    await addFavoriteQuestion(slug);
+                    assert.ok((await getFavoriteProblemSlugs()).has(slug), "add should restore two-sum");
+                } else {
+                    await addFavoriteQuestion(slug);
+                    assert.ok((await getFavoriteProblemSlugs()).has(slug), "add should include two-sum");
+                    await removeFavoriteQuestion(slug);
+                    assert.ok(!(await getFavoriteProblemSlugs()).has(slug), "remove should drop two-sum");
+                }
+            } finally {
+                if (wasFavorite !== (await getFavoriteProblemSlugs()).has(slug)) {
+                    await (wasFavorite ? addFavoriteQuestion(slug) : removeFavoriteQuestion(slug));
+                }
             }
         });
     });

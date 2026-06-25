@@ -6,7 +6,7 @@ import { globalState, IBrowserRequestHeaders } from "../../globalState";
 // Loads a real, locally-stored LeetCode auth payload (cookie + browser headers)
 // so the live integration tests can hit LeetCode with a genuine session. The
 // payload is produced by the browser extension's Developer mode ("Copy test
-// fixture") and pasted into a gitignored file. See ./README.md.
+// fixture") and pasted into a gitignored file. See docs/maintainer-guide.md.
 
 export interface IAuthFixture {
     endpoint: "leetcode" | "leetcode-cn";
@@ -44,9 +44,13 @@ export async function applyAuthFixture(fixture: IAuthFixture): Promise<void> {
         useEndpointTranslation: fixture.endpoint === "leetcode-cn",
     };
 
-    // Back globalState with an in-memory Memento, then seed it with the fixture
-    // so getCookie()/getBrowserUserAgent()/getBrowserRequestHeaders() resolve.
-    globalState.initialize({ globalState: new MapMemento() } as unknown as vscode.ExtensionContext);
+    // Back globalState with in-memory Memento/SecretStorage, then seed it with the
+    // fixture so getCookie()/getBrowserUserAgent()/getBrowserRequestHeaders() resolve.
+    await globalState.initialize({
+        globalState: new MapMemento(),
+        secrets: new MapSecretStorage(),
+        subscriptions: [],
+    } as unknown as vscode.ExtensionContext);
     await globalState.setCookie(fixture.cookie);
     if (fixture.userAgent) {
         await globalState.setBrowserUserAgent(fixture.userAgent);
@@ -113,5 +117,27 @@ class MapMemento {
 
     public keys(): readonly string[] {
         return Array.from(this.store.keys());
+    }
+}
+
+class MapSecretStorage {
+    private readonly values: Map<string, string> = new Map<string, string>();
+
+    public get(key: string): Promise<string | undefined> {
+        return Promise.resolve(this.values.get(key));
+    }
+
+    public store(key: string, value: string): Promise<void> {
+        this.values.set(key, value);
+        return Promise.resolve();
+    }
+
+    public delete(key: string): Promise<void> {
+        this.values.delete(key);
+        return Promise.resolve();
+    }
+
+    public onDidChange(): vscode.Disposable {
+        return { dispose(): void { /* no-op */ } };
     }
 }

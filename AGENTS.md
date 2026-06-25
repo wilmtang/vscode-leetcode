@@ -14,11 +14,12 @@ intentional.
 
 ## Audit history
 
-- `docs/post-migration-audit.md` — audit 1 (the `vsc-leetcode-cli` removal).
-- `docs/post-migration-audit-2.md` — audit 2 (profile panel + security pass).
+- `docs/maintainer-guide.md` has the consolidated audit notes, current caveats,
+  live-test workflow, and release workflow.
 
-When you finish an audit, record findings in a `docs/…audit….md` file and note
-fixes in `CHANGELOG.md`.
+When you finish an audit, append concise findings to `docs/maintainer-guide.md`
+unless the audit is large enough to justify a separate file. Note fixes in
+`CHANGELOG.md`.
 
 ## Known intentional design decisions — do NOT flag as bugs
 
@@ -57,12 +58,12 @@ removed; it's a known, opt-in path.
 
 Everything else — credential-at-rest handling, the request/HTTP layer, the
 webview CSPs and sanitizer, explorer caching, concurrency in the sync server —
-is in scope. Audit 2 fixed a batch of these; see `docs/post-migration-audit-2.md`
-for the current state and `CHANGELOG.md` for what changed.
+is in scope. See `docs/maintainer-guide.md` and `CHANGELOG.md` for current
+state.
 
 ## Conventions
 
-- `leetcode.cn` support is currently **broken and untested** (see audit 1 #2);
-  CN-only gaps are documented, not necessarily fixed. PRs welcome.
+- `leetcode.cn` support is currently **broken and untested**; CN-only gaps are
+  documented, not necessarily fixed. PRs welcome.
 - Secrets (session cookie, captured browser request headers) live in
   `context.secrets` (OS keychain), never in `globalState`/Memento. Keep it that way.

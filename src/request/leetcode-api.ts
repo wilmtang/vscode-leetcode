@@ -925,9 +925,9 @@ async function mutateFavorite(operationName: "addQuestionToFavoriteV2" | "remove
 //
 // Replaces the CLI's `show --solution`. The current "Solutions" tab is backed by
 // `ugcArticleSolutionArticles` (the list) + `ugcArticleSolutionArticle` (one
-// article's markdown), verified live. We fetch the most-voted article, optionally
-// filtered by a language tag with an unfiltered fallback so something readable
-// always renders. CN is inherited (same operations) but untested.
+// article's markdown), verified live. We fetch the most-voted article overall so
+// the command matches its "Top Voted Solution" label. CN is inherited (same
+// operations) but untested.
 // ---------------------------------------------------------------------------
 
 export interface ILeetCodeSolutionArticle {
@@ -970,15 +970,10 @@ interface ISolutionArticleData {
     };
 }
 
-export async function getTopSolutionArticle(titleSlug: string, langSlug?: string): Promise<ILeetCodeSolutionArticle | undefined> {
+export async function getTopSolutionArticle(titleSlug: string): Promise<ILeetCodeSolutionArticle | undefined> {
     const cookie: string = getRequiredCookie();
-    const tagSlugs: string[] = normalizeLanguageTags(langSlug);
 
-    let node: ISolutionArticleNode | undefined = await fetchTopSolutionNode(titleSlug, tagSlugs, cookie);
-    if (!node && tagSlugs.length > 0) {
-        // No solution in the requested language — fall back to the most-voted overall.
-        node = await fetchTopSolutionNode(titleSlug, [], cookie);
-    }
+    const node: ISolutionArticleNode | undefined = await fetchTopSolutionNode(titleSlug, cookie);
     if (!node || node.topicId === undefined) {
         return undefined;
     }
@@ -997,7 +992,7 @@ export async function getTopSolutionArticle(titleSlug: string, langSlug?: string
     };
 }
 
-async function fetchTopSolutionNode(titleSlug: string, tagSlugs: string[], cookie: string): Promise<ISolutionArticleNode | undefined> {
+async function fetchTopSolutionNode(titleSlug: string, cookie: string): Promise<ISolutionArticleNode | undefined> {
     const response: IGraphqlResponse<ISolutionArticlesData> = await requestJson<IGraphqlResponse<ISolutionArticlesData>>({
         method: "POST",
         url: getUrl("graphql"),
@@ -1019,7 +1014,8 @@ async function fetchTopSolutionNode(titleSlug: string, tagSlugs: string[], cooki
                 "  }",
                 "}",
             ].join("\n"),
-            variables: { questionSlug: titleSlug, orderBy: "MOST_VOTES", skip: 0, first: 1, tagSlugs },
+            // LeetCode's resolver currently errors if tagSlugs is omitted; [] is the unfiltered request.
+            variables: { questionSlug: titleSlug, orderBy: "MOST_VOTES", skip: 0, first: 1, tagSlugs: [] },
             operationName: "ugcArticleSolutionArticles",
         },
     }, { label: "solution articles" });
@@ -1063,19 +1059,6 @@ function countUpvotes(reactions: Array<{ count?: number; reactionType?: string }
 
     const upvote = reactions.find((reaction) => reaction.reactionType === "UPVOTE");
     return (upvote && upvote.count) || 0;
-}
-
-// LeetCode tags python3 and python solutions separately; normalize so picking
-// either surfaces the richer pool, matching the CLI's python3/python handling.
-function normalizeLanguageTags(langSlug?: string): string[] {
-    if (!langSlug) {
-        return [];
-    }
-    if (langSlug === "python" || langSlug === "python3") {
-        return ["python3", "python"];
-    }
-
-    return [langSlug];
 }
 
 export function mapRestProblem(raw: IRestProblemStat): ILeetCodeProblem {
